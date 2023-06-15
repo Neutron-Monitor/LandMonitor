@@ -80,7 +80,7 @@ protected:
 	wxButton* m_button_psi;
 	wxStaticText* m_staticText84;
 	wxCheckBox* m_checkBox2;
-	wxStaticText* m_staticText86;
+	wxStaticText* lblSoftVersion;
 	wxStaticText* m_quickBookStatus;
 	wxStaticText* m_staticText88;
 
@@ -94,23 +94,6 @@ public:
 	Monitor(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Neutron Monitor on wxWidgets test"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(1051, 647), long style = wxDEFAULT_FRAME_STYLE | wxTAB_TRAVERSAL);
 
 	~Monitor();
-
-};
-
-///////////////////////////////////////////////////////////////////////////////
-/// Class House
-///////////////////////////////////////////////////////////////////////////////
-class House : public wxFrame
-{
-private:
-
-protected:
-
-public:
-
-	House(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(500, 300), long style = wxDEFAULT_FRAME_STYLE | wxTAB_TRAVERSAL);
-
-	~House();
 
 };
 

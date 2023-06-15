@@ -315,9 +315,9 @@ Monitor::Monitor(wxWindow* parent, wxWindowID id, const wxString& title, const w
 	wxStaticBoxSizer* sbSizer35;
 	sbSizer35 = new wxStaticBoxSizer(new wxStaticBox(this, wxID_ANY, wxT("SOFTWARE")), wxVERTICAL);
 
-	m_staticText86 = new wxStaticText(sbSizer35->GetStaticBox(), wxID_ANY, wxT("Version"), wxDefaultPosition, wxDefaultSize, 0);
-	m_staticText86->Wrap(-1);
-	sbSizer35->Add(m_staticText86, 0, wxALL, 5);
+	lblSoftVersion = new wxStaticText(sbSizer35->GetStaticBox(), wxID_ANY, wxT("Version"), wxDefaultPosition, wxDefaultSize, 0);
+	lblSoftVersion->Wrap(-1);
+	sbSizer35->Add(lblSoftVersion, 0, wxALL, 5);
 
 
 	gbSizer1->Add(sbSizer35, wxGBPosition(9, 0), wxGBSpan(1, 3), wxEXPAND, 5);
@@ -355,16 +355,4 @@ Monitor::~Monitor()
 	m_button_psi->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(Monitor::m_button_psiOnButtonClick), NULL, this);
 	m_quickBookStatus->Disconnect(wxEVT_LEFT_DOWN, wxMouseEventHandler(Monitor::m_quickBookStatusOnLeftDown), NULL, this);
 
-}
-
-House::House(wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style) : wxFrame(parent, id, title, pos, size, style)
-{
-	this->SetSizeHints(wxDefaultSize, wxDefaultSize);
-
-
-	this->Centre(wxBOTH);
-}
-
-House::~House()
-{
 }

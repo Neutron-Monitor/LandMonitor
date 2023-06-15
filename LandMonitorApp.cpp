@@ -18,6 +18,9 @@ IMPLEMENT_APP(LandMonitorApp);
 bool LandMonitorApp::OnInit()
 {
 	LMMonitor* monitorF = new LMMonitor(NULL);
+	const wxString ver(_("Land Monitor V") + std::to_string(MAJOR_VERSION) + _(".") + std::to_string(MINOR_VERSION));
+
+	monitorF->setSoftwareVer( ver );
 	monitorF->Show();
 	return true;
 }

@@ -18,3 +18,8 @@ void LMMonitor::m_quickBookStatusOnLeftDown( wxMouseEvent& event )
 	this->Update();
 	this->Refresh();
 }
+
+void LMMonitor::setSoftwareVer(const wxString  &ver)
+{
+	this->lblSoftVersion->SetLabelText(ver);
+}
