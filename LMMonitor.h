@@ -23,6 +23,7 @@ class LMMonitor : public Monitor
 		LMMonitor( wxWindow* parent );
 	//// end generated class members
 		void setSoftwareVer( const wxString &ver);
+
 };
 
 #endif // __LMMonitor__
