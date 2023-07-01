@@ -36,7 +36,7 @@ std::fstream BareTrapFile;
 //Converted Global variables from NuMonSubs-bas.txt
 // Definitions for data transmission options
 const int lDataCol = 3;
-const int lDataRow = 7;
+const int lDataRow = 8;
 const int IdxMailSSE = 0;
 const int IdxMailDay = 1;
 const int IdxMailHHist = 2;
@@ -90,7 +90,7 @@ const int maxMaster = 7;
 const int Mod16Bit = 65536;
 const int MaxLong = 2147483647;
 const double MarkOvr = 4294967296.0;
-const int AbsoluteLastUnit = 24;
+const int AbsoluteLastUnit = 25;
 const int maxHitsPerUnit = 40;
 const int AbsoluteLastHistogram = 149;
 const int AbsoluteLastCrossHistogram = 55;
@@ -213,9 +213,9 @@ const int CrossHisLastChan = 1023;
 const int MonitorRingLast = 200;
 const int CrossRingLast = 200;
 const int MonitorLimLast = 6;
-const int MonitorLimColLast = 8;
+const int MonitorLimColLast = 9;
 const int CrossLimLast = 6;
-const int CrossLimColLast = 8;
+const int CrossLimColLast = 9;
 const int lSecondCountsRing = 7;
 bool RecordMarkerRing;
 bool RecordMarkerSolution;
@@ -550,7 +550,7 @@ std::string HistogramFileName;
 std::string DailyHistogramFileName;
 std::string HourlyHistogramFileName;
 std::string CrossMatrixFileName;
-const int mBar = 1;
+const int mBar = 2;
 std::vector<std::string> BarometerFile(mBar);
 std::vector<bool> BarLoaded(mBar);
 std::vector<std::string> BarSerial(mBar);
@@ -883,7 +883,7 @@ bool LandMonitorApp::Monitor_Form_Load()
 
     // Different initial settings may be entered via the WhatAmI file
     // During the run, settings may be changed in the "Display" form
-    for (iFor = 0; iFor <= AbsoluteLastCrossHistogram; iFor++)
+    for (iFor = 0; iFor < AbsoluteLastCrossHistogram; iFor++)
         CrossHistogramActive[iFor] = false;
         //CrossHistogramActive(iFor) = false;
     MonDumpDefault = 1; //manual # removal -B
@@ -989,7 +989,7 @@ bool LandMonitorApp::Monitor_Form_Load()
     ExTime[IdxSFTPDay] = 1;
     // When the daily file is mailed, suppress SSE mailing for this many minutes
     SuppressSSEMail = 0;
-    for (iFor = 0; iFor <= AbsoluteLastUnit; iFor++)
+    for (iFor = 0; iFor < AbsoluteLastUnit; iFor++)
     {
         //UnitIsBad(iFor) = false;
         UnitIsBad[iFor] = false;
@@ -1004,7 +1004,7 @@ bool LandMonitorApp::Monitor_Form_Load()
     PortStallEnable = false;
     AutoRebootEnable = false;
     LocalQuicklookOpen = false;
-    for (iFor = 0; iFor <= lDataRow; iFor++)
+    for (iFor = 0; iFor < lDataRow; iFor++)
         Active[iFor] = false;
     AutoRebootEnable = false;
     GPSTimeSyncEnable = false;
@@ -1038,13 +1038,15 @@ bool LandMonitorApp::Monitor_Form_Load()
     //Line(Input, InputStr);
     getline(reuseFile, InputStr);
     //MoreFiles = Strings.InStr(InputStr, "EndOfFileSpecs") == 0;
-    MoreFiles = InputStr.find( "EndOfFileSpecs" ) != std::string::npos;
+    MoreFiles = InputStr.find( "EndOfFileSpecs" ) == std::string::npos;
     while (MoreFiles)
     {
         //LogEntry("WhatAmI Entry:" + " " + InputStr);
         LogEntry("WhatAmI Entry:" + ' ' + InputStr);
         //if (Left(InputStr, 1) == "*")
-        if (InputStr.at(0) == '*' )
+        if (0 == InputStr.length()) //line is blank, can't check 1st char
+            KeyString = "NoKey";
+        else if ('*' == InputStr.at(0))
             KeyString = "Comment";
         else
         {
@@ -1169,7 +1171,7 @@ bool LandMonitorApp::Monitor_Form_Load()
             //CurDayTimTag = Format(CurTime, "yy/mm/dd hh:mm:ss");
             char fCurTime[20];
             std::time(&CurTime);
-            strftime(fCurTime, std::size(fCurTime), "%y/%m/%d", std::localtime(&CurTime));
+            strftime(fCurTime, std::size(fCurTime), "%y_%m_%d", std::localtime(&CurTime));
             CurDate = fCurTime;
             strftime(fCurTime, std::size(fCurTime), "%y/%m/%d %T", std::localtime(&CurTime));
             CurDayTimTag = fCurTime;
@@ -1213,7 +1215,7 @@ bool LandMonitorApp::Monitor_Form_Load()
             //StickFileName = MemStickDrive + @":\" + StationID + "_" + CurDate + ".DAT";
             StickFileName = MemStickDrive + ":\\" + StationID + '_' + CurDate + ".DAT";
                 // The HitSpool files may never be opened
-                for (iFor = 0; iFor <= AbsoluteLastUnit; iFor++)
+                for (iFor = 0; iFor < AbsoluteLastUnit; iFor++)
                 {
                     HitFileName[iFor] = HitSpoolDirectory + StationID;
                     //HitFileName[iFor] = HitFileName(iFor); //redundant -B
@@ -2359,13 +2361,16 @@ Input:
             LogEntry(KeyString + " invalid in WhatAmI");
             //break; //case replacement for string compare -B
         }
-        }
+        //}
         //Line(Input, InputStr);
         getline(reuseFile, InputStr);
         //MoreFiles = Strings.InStr(InputStr, "EndOfInformation") == 0;
-        MoreFiles = InputStr.find("EndOfFileSpecs") != std::string::npos;
+        //MoreFiles = InputStr.find("EndOfFileSpecs") == std::string::npos;
+        MoreFiles = InputStr.find("EndOfInformation") == std::string::npos;
+    }
 
-        return true; ///TODO rest of Monitor_Form_Load()
+    MinuteFile.close(); //TODO rest of Monitor_Form_Load()
+        return true; //TODO rest of Monitor_Form_Load()
 }
 
 /* TODO rest of Monitor_Form_Load()
