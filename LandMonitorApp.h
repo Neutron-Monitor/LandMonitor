@@ -20,6 +20,12 @@ public:
 	void MakeCSVString(std::string& OpString);
 	void SetUpMaster(int MasterNum, std::string SetString);
 
+#ifdef _WIN32  // Windows specific code
+	HANDLE openSerialPort(const char* portName, const char* serialParams);
+#else  // Linux specific code
+	int openSerialPort(const char* portName, const char* serialParams);
+#endif
+
 };
 
 #endif //LANDMONITORAPP_H

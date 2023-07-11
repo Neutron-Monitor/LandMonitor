@@ -17,7 +17,15 @@
 
 //#include <filesystem>
 
+#ifdef _WIN32  // Windows specific code
+#include <Windows.h>
 
+#else  // Linux specific code
+#include <fcntl.h>
+#include <termios.h>
+#include <unistd.h>
+
+#endif
 
 
 #define MAJOR_VERSION 0 //changes on major revisions
@@ -32,6 +40,14 @@ IMPLEMENT_APP(LandMonitorApp);
 LMMonitor* monitorF;
 std::fstream MinuteFile;
 std::fstream BareTrapFile;
+int comRack_CommPort;
+std::string comRack_Settings;
+#ifdef _WIN32  // Windows specific code
+HANDLE comRack;
+#else  // Linux specific code
+int comRack;
+#endif
+
 
 //Converted Global variables from NuMonSubs-bas.txt
 // Definitions for data transmission options
@@ -921,6 +937,7 @@ bool LandMonitorApp::Monitor_Form_Load()
 
     //Precompiler block to set default file locations -B
 #ifdef defined( __linux__ ) && defined( RUNSECONDCOPY )
+
     VMailDirectory = "~/LandBaseII/VMailer/";
     PersonalityDirectory = "~/LandBaseII/Personality/";
     MinuteDirectory = "~/LandBaseII/MinuteData/";
@@ -934,6 +951,7 @@ bool LandMonitorApp::Monitor_Form_Load()
     DogHouse = "~/LandBaseII/Doghouse/";
 
 #elif defined( __linux__ )
+
     VMailDirectory = "~/LandBase/VMailer/";
     PersonalityDirectory = "~/LandBase/Personality/";
     MinuteDirectory = "~/LandBase/MinuteData/";
@@ -947,6 +965,7 @@ bool LandMonitorApp::Monitor_Form_Load()
     DogHouse = "~/LandBase/Doghouse/";
 
 #elif defined( _WIN32 ) && defined( RUNSECONDCOPY )
+
     VMailDirectory = "C:\\LandBaseII\\VMailer\\";
     PersonalityDirectory = "C:\\LandBaseII\\Personality\\";
     MinuteDirectory = "C:\\LandBaseII\\MinuteData\\";
@@ -960,6 +979,7 @@ bool LandMonitorApp::Monitor_Form_Load()
     DogHouse = "C:\\LandBaseII\\Doghouse\\";
 
 #else
+
     VMailDirectory = "C:\\LandBase\\VMailer\\";
     PersonalityDirectory = "C:\\LandBase\\Personality\\";
     MinuteDirectory = "C:\\LandBase\\MinuteData\\";
@@ -2161,7 +2181,7 @@ Input:
             PortNo = strtol(InputStr.c_str(), NULL, 10);
             InputStr = InputStr.substr( nBlank + 1, std::string::npos); //replacement for Mid -B
             nBlank = InputStr.find(' ');
-            SetStr = InputStr.substr(0, nBlank - 1);
+            SetStr = InputStr.substr(0, nBlank);
             InputStr = InputStr.substr( nBlank + 1, std::string::npos); //replacement for Mid -B
             //comPSI.CommPort = PortNo; //TODO comms
             //comPSI.Settings = SetStr;
@@ -2179,13 +2199,18 @@ Input:
             PortNo = strtol(InputStr.c_str(), NULL, 10);
             InputStr = InputStr.substr(nBlank + 1, std::string::npos); //replacement for Mid -B
             nBlank = InputStr.find(' ');
-            SetStr = InputStr.substr(0, nBlank - 1);
+            SetStr = InputStr.substr(0, nBlank);
             InputStr = InputStr.substr(nBlank + 1, std::string::npos); //replacement for Mid -B
             //comRack.CommPort = PortNo; //TODO comms
             //comRack.Settings = SetStr;
             //comRack.InBufferSize = SetInBufferSize;
+            comRack_CommPort = PortNo;
+            comRack_Settings = SetStr;
             //if (Strings.InStr(InputStr, "On") > 0)
             //    btnRackOnOff_Click();
+            char comChar[] = "COM   ";
+            _ltoa(comRack_CommPort, (comChar +3), 10);
+            comRack = openSerialPort(comChar, comRack_Settings.c_str());
             //LogEntry("Set up " + KeyString + " P:" + Format(PortNo) + " S:" + SetStr + " A:" + InputStr);
             LogEntry("Set up " + KeyString + " P:" + std::to_string(PortNo) + " S:" + SetStr + " A:" + InputStr);
             //break; //case replacement for string compare -B
@@ -2198,7 +2223,7 @@ Input:
             PortNo = strtol(InputStr.c_str(), NULL, 10);
             InputStr = InputStr.substr(nBlank + 1, std::string::npos); //replacement for Mid -B
             nBlank = InputStr.find(' ');
-            SetStr = InputStr.substr(0, nBlank - 1);
+            SetStr = InputStr.substr(0, nBlank);
             InputStr = InputStr.substr(nBlank + 1, std::string::npos); //replacement for Mid -B
             //comLocalQuicklook.CommPort = PortNo; //TODO comms
             //comLocalQuicklook.Settings = SetStr;
@@ -4058,4 +4083,140 @@ void LandMonitorApp::MakeCSVString(std::string& OpString) {
         }
     }
 }
+
+
+#ifdef _WIN32  // Windows specific code
+
+HANDLE LandMonitorApp::openSerialPort(const char* portName, const char* serialParams)
+{
+    HANDLE hSerial = CreateFileA(portName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+
+    if (hSerial == INVALID_HANDLE_VALUE)
+    {
+        // Handle error opening the port
+        return INVALID_HANDLE_VALUE;
+    }
+
+    DCB dcbSerialParams = { 0 };
+    dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
+
+    if (!GetCommState(hSerial, &dcbSerialParams))
+    {
+        // Handle error getting the serial port state
+        CloseHandle(hSerial);
+        return INVALID_HANDLE_VALUE;
+    }
+
+    // Parse serial parameters
+    int baudRate, byteSize, stopBits;
+    char parity;
+    if (sscanf(serialParams, "%d,%c,%d,%d", &baudRate, &parity, &byteSize, &stopBits) != 4)
+    {
+        // Handle error parsing serial parameters
+        CloseHandle(hSerial);
+        return INVALID_HANDLE_VALUE;
+    }
+
+    // Set serial parameters
+    dcbSerialParams.BaudRate = baudRate;
+    dcbSerialParams.ByteSize = byteSize;
+    dcbSerialParams.StopBits = stopBits;
+    //dcbSerialParams.Parity = parity;
+    if (('n' == parity) || ('N' == parity))
+    {
+        dcbSerialParams.Parity = NOPARITY; //fix for WhatAmI.gpc file format -B
+    }
+    else
+    {
+        dcbSerialParams.Parity = ODDPARITY; //TODO any other type of parity
+    }
+
+    if (!SetCommState(hSerial, &dcbSerialParams))
+    {
+        // Handle error setting the serial port state
+        CloseHandle(hSerial);
+        return INVALID_HANDLE_VALUE;
+    }
+
+    return hSerial;
+}
+
+#else  // Linux specific code
+int LandMonitorApp::openSerialPort(const char* portName, const char* serialParams)
+{
+    int fd = open(portName, O_RDWR | O_NOCTTY | O_NDELAY);
+
+    if (fd == -1)
+    {
+        // Handle error opening the port
+        return -1;
+    }
+
+    struct termios tty;
+    if (tcgetattr(fd, &tty) != 0)
+    {
+        // Handle error getting the serial port attributes
+        close(fd);
+        return -1;
+    }
+
+    // Parse serial parameters
+    int baudRate, byteSize, stopBits;
+    char parity;
+    if (sscanf(serialParams, "%d,%c,%d,%d", &baudRate, &parity, &byteSize, &stopBits) != 4)
+    {
+        // Handle error parsing serial parameters
+        close(fd);
+        return -1;
+    }
+
+    // Set serial parameters
+    cfsetospeed(&tty, baudRate);
+    cfsetispeed(&tty, baudRate);
+
+    switch (parity)
+    {
+    case 'N':
+        tty.c_cflag &= ~PARENB;
+        tty.c_iflag &= ~INPCK;
+        break;
+    case 'E':
+        tty.c_cflag |= PARENB;
+        tty.c_cflag &= ~PARODD;
+        tty.c_iflag |= INPCK;
+        break;
+    case 'O':
+        tty.c_cflag |= PARENB;
+        tty.c_cflag |= PARODD;
+        tty.c_iflag |= INPCK;
+        break;
+    default:
+        // Handle invalid parity
+        close(fd);
+        return -1;
+    }
+
+    tty.c_cflag &= ~CSTOPB;
+
+    tty.c_cflag &= ~CSIZE;
+    tty.c_cflag |= CS8;
+    tty.c_cflag &= ~CRTSCTS;
+
+    tty.c_lflag = 0;
+    tty.c_oflag = 0;
+
+    tty.c_cc[VMIN] = 0;
+    tty.c_cc[VTIME] = 0;
+
+    if (tcsetattr(fd, TCSANOW, &tty) != 0)
+    {
+        // Handle error setting the serial port attributes
+        close(fd);
+        return -1;
+    }
+
+    return fd;
+}
+
+#endif
 
