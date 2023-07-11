@@ -1242,7 +1242,7 @@ bool LandMonitorApp::Monitor_Form_Load()
                     //HitFileName[iFor] = HitFileName(iFor) + "_" + CurDate + "_U" + Right(Format(iFor + 100), 2) + ".HitSpool";
                     HitFileName[iFor] += "_" + CurDate + "_U";
                     char mod100iFor[2];
-                    snprintf(mod100iFor, 3, "%02d", iFor % 100);
+                    snprintf(mod100iFor, 2, "%02d", iFor % 100);
                     HitFileName[iFor] += mod100iFor;
                     HitFileName[iFor] += ".HitSpool";
                 }
@@ -2208,9 +2208,12 @@ Input:
             comRack_Settings = SetStr;
             //if (Strings.InStr(InputStr, "On") > 0)
             //    btnRackOnOff_Click();
-            char comChar[] = "COM   ";
-            _ltoa(comRack_CommPort, (comChar +3), 10);
-            comRack = openSerialPort(comChar, comRack_Settings.c_str());
+            if (std::string::npos != InputStr.find("On"))
+            {
+                char comChar[] = "COM   ";
+                _ltoa(comRack_CommPort, (comChar + 3), 10);
+                comRack = openSerialPort(comChar, comRack_Settings.c_str());
+            }
             //LogEntry("Set up " + KeyString + " P:" + Format(PortNo) + " S:" + SetStr + " A:" + InputStr);
             LogEntry("Set up " + KeyString + " P:" + std::to_string(PortNo) + " S:" + SetStr + " A:" + InputStr);
             //break; //case replacement for string compare -B
