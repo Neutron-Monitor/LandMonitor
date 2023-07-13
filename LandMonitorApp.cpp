@@ -2397,14 +2397,10 @@ Input:
         MoreFiles = InputStr.find("EndOfInformation") == std::string::npos;
     }
 
-    MinuteFile.close(); //TODO rest of Monitor_Form_Load()
-        return true; //TODO rest of Monitor_Form_Load()
-}
 
-/* TODO rest of Monitor_Form_Load()
-* 
-    Close();
-    for (iFor = 0; iFor <= 59; iFor++)
+    //Close();
+    reuseFile.close();
+    for (iFor = 0; iFor < 59; iFor++)
     {
         PressureRing[iFor] = 0; //manual # removal -B
         ValidRingPressure[iFor] = false;
@@ -2768,6 +2764,11 @@ Input:
 Print #2, "SelCatch" & " " & CatchDecimateInit
 
  */
+    MinuteFile.close(); //TODO rest of Monitor_Form_Load()
+
+    return true; //TODO rest of Monitor_Form_Load()
+    }
+
 /* TODO rest of Monitor_Form_Load()
 * 
     PHAHisOrigin = 0;
