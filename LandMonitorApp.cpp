@@ -4103,13 +4103,84 @@ void LandMonitorApp::MakeCSVString(std::string& OpString) {
     }
 }
 
+void LandMonitorApp::Exception(std::string Message)
+{
+    //frmMonitor.lblException[0].Caption = CurDayTimTag; //TODO connect to wx with event    
+ // frmMonitor.lblException[1].Caption = Message;  //TODO connect to wx with event    
+    // Allow for logging of exceptions at a limited rate.
+    FreshException += 1;
+    if (FreshException > 10)
+    {
+    }
+    else if (MinuteFileAvailable && (FreshException > 0))
+    {
+        //File.AppendAllText("PathToYourFile.txt", "Exception: " + FreshException.ToString() + " " + frmMonitor.lblException[0].Caption + " " + frmMonitor.lblException[1].Caption + Environment.NewLine);
+        wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
+        MinuteFile << Message << '\n' << std::flush;
+    }
+    else
+    {
+    }
+}
+
+void LandMonitorApp::CountSync(std::string Candidate) {
+    int Kind;
+    SyncEventCount += 1.0;
+
+    if (Candidate == GPSSync) {
+        Kind = 0;
+    }
+    else if (Candidate == ShortTubeSync) {
+        Kind = 1;
+    }
+    else if (Candidate == LongTubeSync) {
+        Kind = 2;
+    }
+    else if (Candidate == CtrSync) {
+        Kind = 3;
+    }
+    else if (Candidate == DoneSync) {
+        Kind = 4;
+    }
+    else {
+        Kind = maxSyncType;
+    }
+
+    SyncTypeCount[Kind] += 1.0;
+}
+
+void LandMonitorApp::CountNoDelimeter(std::string Candidate) {
+    int Kind;
+    SyncEventCount += 1.0;
+
+    if (Candidate == GPSSync) {
+        Kind = 0;
+    }
+    else if (Candidate == ShortTubeSync) {
+        Kind = 1;
+    }
+    else if (Candidate == LongTubeSync) {
+        Kind = 2;
+    }
+    else if (Candidate == CtrSync) {
+        Kind = 3;
+    }
+    else if (Candidate == DoneSync) {
+        Kind = 4;
+    }
+    else {
+        Kind = maxSyncType;
+    }
+
+    NoDelimiterCount[Kind] += 1.0;
+}
 
 void LandMonitorApp::RackData()
 {
     bool StillHope;
     bool NewData;
     std::string ReportString;
-    std::string DeviceData;
+    //std::string DeviceData;//moved to loop
     std::string RawDataRead;
     std::string HexString;
     std::string GPSHex;
@@ -4129,7 +4200,7 @@ void LandMonitorApp::RackData()
     uint8_t Dta[1600];
     //std::string Current; //now static vector
     static std::vector<uint8_t> Current;
-    std::string SyncCandidate;
+    //std::string SyncCandidate; //moved to loop
     int lRackBuffer;
     int iFor;
     int nUnit;
@@ -4147,6 +4218,7 @@ void LandMonitorApp::RackData()
     int GPSNumSatRead;
     int FreshCount;
     std::string MinuteFileOut;
+    VerboseDiagnostics = true; //TODO comment out
     // Read the Rack port
     ReadFile(comRack, &Dta, 1600, &nRead, NULL);
     //Dta = comRack.Input;
@@ -4171,7 +4243,7 @@ void LandMonitorApp::RackData()
             RawDataRead.push_back(hexCharLUT[temp]);
         }
         //RawDataRead.push_back('\n');
-        
+
         MinuteFileOut += RawDataRead; //Buffer writes to file
         /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
@@ -4208,19 +4280,22 @@ Input:
 
  */
     }
-    /* TODO rest of RackData()
 
-//    frmHouse.lblNRead(1).Caption = Format(nRead, "0"); //TODO connect to wx with event
+
+    //    frmHouse.lblNRead(1).Caption = Format(nRead, "0"); //TODO connect to wx with event
     nReadSecond = nReadSecond + nRead;
     nReadTotal = nReadTotal + nRead;
-//    frmHouse.lblSecRead.Caption = Format(nReadSecond, "0"); //TODO connect to wx with event
-    // Report large data string
-    lRackBuffer = Strings.Len(Current);
+    //    frmHouse.lblSecRead.Caption = Format(nReadSecond, "0"); //TODO connect to wx with event
+        // Report large data string
+        //lRackBuffer = Strings.Len(Current);
+    lRackBuffer = Current.size();
     if (lRackBuffer > 4096)
     {
-        Exception("Large Internal Rack Buffer: " + Format(lRackBuffer, "0"));
-        if (CrossMultiplicityEnabled)
-            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+        //Exception("Large Internal Rack Buffer: " + Format(lRackBuffer, "0"));
+        Exception("Large Internal Rack Buffer: " + std::to_string(lRackBuffer));
+        //if (CrossMultiplicityEnabled) //TODO 
+        //    ;
+        /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -4260,21 +4335,21 @@ Input:
 Print #98, "Large Internal Rack Buffer: " & Format$(lRackBuffer, "0")
 
  */
- /* TODO rest of RackData()
-     }
+    }
     // Add the new data to the buffer
     //if (RackInSync | (chkSyncFail.Value == 0))
-    if (RackInSync )//TODO connect to wx with event
+    if (RackInSync)//TODO connect to wx with event
         nNoRackSync = 0;
     else
     {
-        nNoRackSync = nNoRackSync + Strings.Len(Dta);
+        //nNoRackSync = nNoRackSync + Strings.Len(Dta);
+        nNoRackSync = nNoRackSync + nRead;
         if (nNoRackSync > 300)
         {
-//            btnRackOnOff_Click(); //TODO connect to wx with event
+            //            btnRackOnOff_Click(); //TODO connect to wx with event
             LogEntry("Too Many Reads Without Sync");
             nNoRackSync = 0;
-//            btnRackOnOff_Click(); //TODO connect to wx with event
+            //            btnRackOnOff_Click(); //TODO connect to wx with event
         }
     }
     // Diagnostic for sync failures
@@ -4290,8 +4365,8 @@ Print #98, "Large Internal Rack Buffer: " & Format$(lRackBuffer, "0")
     // Next iFor
     // Print #2, "NoSync Dta: " & HexString
     // End If
-/* TODO rest of RackData()
-    Current = Current + Dta;
+    //Current = Current + Dta;
+    Current.insert(Current.end(), Dta, Dta + nRead);
     // If Not RackInSync Then
     // HexString = Format$(Len(Current)) & " "
     // For iFor = 1 To Len(Current)
@@ -4301,23 +4376,38 @@ Print #98, "Large Internal Rack Buffer: " & Format$(lRackBuffer, "0")
     // End If
     NewData = true;
     StillHope = true;
-    while (StillHope & Strings.Len(Current) > RackSyncLen)
+    //while (StillHope & Strings.Len(Current) > RackSyncLen)
+    while (StillHope && (Current.size() > RackSyncLen))
     {
-        SyncCandidate = Left(Current, 4);
+        //SyncCandidate = Left(Current, 4);
+        std::string SyncCandidate(Current.begin(), Current.begin() + 4);
         // Print #2, SyncCandidate, Len(Current)
-        switch (SyncCandidate)
+        //switch (SyncCandidate)
+        //{
+        //    case object _ when ShortTubeSync :
+        //    {
+        if (0 == SyncCandidate.compare(ShortTubeSync))
         {
-            case object _ when ShortTubeSync :
+            //RawSyncCount(4) = RawSyncCount(4) + 1;
+            RawSyncCount[3] += 1;
+
+            //if (Strings.Len(Current) >= ShortTubeByteLen + RackSyncLen + 2)
+            if (Current.size() >= ShortTubeByteLen + RackSyncLen + 2)
             {
-                RawSyncCount(4) = RawSyncCount(4) + 1;
-                if (Strings.Len(Current) >= ShortTubeByteLen + RackSyncLen + 2)
+                if (VerboseDiagnostics)
                 {
-                    if (VerboseDiagnostics)
+                    //HexString = "";
+                    HexString.clear();
+                    //for (iFor = 1; iFor <= ShortTubeByteLen + RackSyncLen + 2; iFor++)
+                    //    HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                    for (iFor = 0; iFor < ShortTubeByteLen + RackSyncLen + 2; iFor++)
                     {
-                        HexString = "";
-                        for (iFor = 1; iFor <= ShortTubeByteLen + RackSyncLen + 2; iFor++)
-                            HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
-                        ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+                        char temp = Current[iFor] >> 4;
+                        HexString.push_back(hexCharLUT[temp]);
+                        temp = Current[iFor] & 0x0f;
+                        HexString.push_back(hexCharLUT[temp]);
+                    }
+                    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
 at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
 at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
 at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -4357,21 +4447,22 @@ Input:
         Print #2, "TubeSync: " & HexString
 
  */
- /* TODO rest of RackData()
-                     }
-                    // The string is long enough, look for delimiter
-                    if (Mid(Current, ShortTubeByteLen + RackSyncLen + 1, 2) == CRLF)
+                    MinuteFileOut += "TubeSync: " + HexString;
+                }
+                // The string is long enough, look for delimiter
+                //if (Mid(Current, ShortTubeByteLen + RackSyncLen + 1, 2) == CRLF)
+                if (('\r' == Current[ShortTubeByteLen + RackSyncLen]) && ('\n' == Current[ShortTubeByteLen + RackSyncLen + 1]))
+                {
+                    if (!RackInSync)
                     {
-                        if (!RackInSync)
+                        RackInSync = true;
+                        CountSync(SyncCandidate);
+                        if (CrossMultiplicityEnabled)
                         {
-                            RackInSync = true;
-                            CountSync(SyncCandidate);
-                            if (CrossMultiplicityEnabled)
+                            //                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+                            if (chkTolerateGaps_Value == false) //TODO connect to wx with event
                             {
-//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
-                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
-                                {
-                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+                                /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
 at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
 at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
 at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -4411,14 +4502,17 @@ Input:
               Print #98, "Reset timing: No delimiter short tube"
 
  */
- /* TODO rest of RackData()
-                                     OrderTimingReset = true;
-                                }
+                                OrderTimingReset = true;
                             }
                         }
-                        DeviceData = Mid(Current, RackSyncLen + 1, ShortTubeByteLen);
-                        if (VerboseDiagnostics)
-                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+                    }
+                    //DeviceData = Mid(Current, RackSyncLen + 1, ShortTubeByteLen);
+                    std::string DeviceData(Current.begin() + RackSyncLen + 1, Current.begin() + ShortTubeByteLen);
+                    if (VerboseDiagnostics)
+                    {
+                        MinuteFileOut += "ShortTube found";
+                    }
+                    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
 at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
 at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
 at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -4458,54 +4552,81 @@ Input:
 Print #2, "ShortTube found"
 
  */
- /* TODO rest of RackData()
-                         DecomShortTube(DeviceData);
-                        // Remove the message from the buffer
-                        if (Strings.Len(Current) > ShortTubeByteLen + RackSyncLen + 2)
-                            Current = Mid(Current, ShortTubeByteLen + RackSyncLen + 3);
-                        else
-                            Current = "";
+ //DecomShortTube(DeviceData); //TODO
+// Remove the message from the buffer
+//if (Strings.Len(Current) > ShortTubeByteLen + RackSyncLen + 2)
+                    if (Current.size() > (ShortTubeByteLen + RackSyncLen + 2))
+                    {
+                        //Current = Mid(Current, ShortTubeByteLen + RackSyncLen + 3);
+                        Current.erase(Current.begin(), Current.begin() + ShortTubeByteLen + RackSyncLen + 3);
                     }
                     else
                     {
-                        // Although there are enough characters, there
-                        // is no delimeter here. So just delete the initial
-                        // character and look for sync again.
-                        if (RecordFullSyncNotes)
-                        {
-                            HexString = "ShortTube No Delimiter ";
-                            for (iFor = 1; iFor <= ShortTubeByteLen + RackSyncLen + 2; iFor++)
-                                HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
-                            Exception(HexString);
-                        }
-                        CountNoDelimeter(SyncCandidate);
-                        Current = Mid(Current, 2);
-                        nSyncSlip = nSyncSlip + 1;
-                        RackInSync = false;
+                        //Current = "";
+                        Current.clear();
                     }
                 }
                 else
                 {
-                    // There is a proper sync, but not a long enough
-                    // string, so here one must just wait.
-                    StillHope = false;
-                    break;
+                    // Although there are enough characters, there
+                    // is no delimeter here. So just delete the initial
+                    // character and look for sync again.
+                    if (RecordFullSyncNotes)
+                    {
+                        HexString = "ShortTube No Delimiter ";
+                        //for (iFor = 1; iFor <= ShortTubeByteLen + RackSyncLen + 2; iFor++)
+                        //    HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                        for (iFor = 0; iFor < ShortTubeByteLen + RackSyncLen + 2; iFor++)
+                        {
+                            char temp = Current[iFor] >> 4;
+                            HexString.push_back(hexCharLUT[temp]);
+                            temp = Current[iFor] & 0x0f;
+                            HexString.push_back(hexCharLUT[temp]);
+                        }
+                        Exception(HexString);
+                    }
+                    CountNoDelimeter(SyncCandidate);
+                    //Current = Mid(Current, 2);
+                    Current.erase(Current.begin());
+                    nSyncSlip = nSyncSlip + 1;
+                    RackInSync = false;
                 }
-
-                break;
+            }
+            else
+            {
+                // There is a proper sync, but not a long enough
+                // string, so here one must just wait.
+                StillHope = false;
+                //break;
             }
 
-            case object _ when LongTubeSync :
+            //break;
+        }
+
+
+            //case object _ when LongTubeSync :
+        if (0 == SyncCandidate.compare(LongTubeSync))
+        {
+            //RawSyncCount(3) = RawSyncCount(3) + 1;
+            RawSyncCount[2] += 1;
+            //if (Strings.Len(Current) >= LongTubeByteLen + RackSyncLen + 2)
+            if (Current.size() >= LongTubeByteLen + RackSyncLen + 2)
             {
-                RawSyncCount(3) = RawSyncCount(3) + 1;
-                if (Strings.Len(Current) >= LongTubeByteLen + RackSyncLen + 2)
+                if (VerboseDiagnostics)
                 {
-                    if (VerboseDiagnostics)
+                    //HexString = "";
+                    HexString.clear();
+                    //for (iFor = 1; iFor <= LongTubeByteLen + RackSyncLen + 2; iFor++)
+                    for (iFor = 0; iFor < LongTubeByteLen + RackSyncLen + 2; iFor++)
                     {
-                        HexString = "";
-                        for (iFor = 1; iFor <= LongTubeByteLen + RackSyncLen + 2; iFor++)
-                            HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
-                        ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+                        char temp = Current[iFor] >> 4;
+                        HexString.push_back(hexCharLUT[temp]);
+                        temp = Current[iFor] & 0x0f;
+                        HexString.push_back(hexCharLUT[temp]);
+                    }
+                        //HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+
+                        /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
 at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
 at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
 at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -4545,23 +4666,36 @@ Input:
         Print #2, "TubeSync: " & HexString
 
  */
- /* TODO rest of RackData()
-                     }
+                    MinuteFileOut += "TubeSync: " + HexString + '\n';
+
+                }
                     // The string is long enough, look for delimiter
-                    if (Mid(Current, LongTubeByteLen + RackSyncLen + 1, 2) == CRLF)
+//                    if (Mid(Current, LongTubeByteLen + RackSyncLen + 1, 2) == CRLF)
+//                    {
+//                        if (!RackInSync)
+//                        {
+//                            RackInSync = true;
+//                            CountSync(SyncCandidate);
+//                            if (CrossMultiplicityEnabled)
+//                            {
+////                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+//                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+//                                {
+////                                    if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+//                                    if (chkMinDiagnostics_Value == 0) //TODO connect to wx with event
+//                                        ;
+                if (('\r' == Current[LongTubeByteLen + RackSyncLen]) && ('\n' == Current[LongTubeByteLen + RackSyncLen + 1]))
+                {
+                    if (!RackInSync)
                     {
-                        if (!RackInSync)
+                        RackInSync = true;
+                        CountSync(SyncCandidate);
+                        if (CrossMultiplicityEnabled)
                         {
-                            RackInSync = true;
-                            CountSync(SyncCandidate);
-                            if (CrossMultiplicityEnabled)
+                            //                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+                            if (chkTolerateGaps_Value == false) //TODO connect to wx with event
                             {
-//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
-                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
-                                {
-//                                    if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
-                                    if (chkMinDiagnostics_Value == 0) //TODO connect to wx with event
-                                        ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
 at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
 at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
 at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -4601,14 +4735,23 @@ Input:
 Print #98, "Reset timing: No delimiter long tube"
 
  */
- /* TODO rest of RackData()
-                                     OrderTimingReset = true;
-                                }
+                        //             OrderTimingReset = true;
+                        //        }
+                        //    }
+                        //}
+                        //DeviceData = Mid(Current, RackSyncLen + 1, LongTubeByteLen);
+                        //if (VerboseDiagnostics)
+                            //;
+                                OrderTimingReset = true;
                             }
                         }
-                        DeviceData = Mid(Current, RackSyncLen + 1, LongTubeByteLen);
-                        if (VerboseDiagnostics)
-                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+                    }
+                    std::string DeviceData(Current.begin() + RackSyncLen + 1, Current.begin() + LongTubeByteLen);
+                    if (VerboseDiagnostics)
+                    {
+                        MinuteFileOut += "LongTube found";
+                    }
+                            /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
 at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
 at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
 at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -4648,41 +4791,93 @@ Input:
 Print #2, "LongTube found"
 
  */        // Remove the message from the buffer
- /* TODO rest of RackData()
-                         if (Strings.Len(Current) > LongTubeByteLen + RackSyncLen + 2)
-                            Current = Mid(Current, LongTubeByteLen + RackSyncLen + 3);
-                        else
-                            Current = "";
-                        DecomLongTube(DeviceData);
+                //         if (Strings.Len(Current) > LongTubeByteLen + RackSyncLen + 2)
+                //            Current = Mid(Current, LongTubeByteLen + RackSyncLen + 3);
+                //        else
+                //            Current = "";
+                //        DecomLongTube(DeviceData);
+                //    }
+                //    else
+                //    {
+                //        // Although there are enough characters, there
+                //        // is no delimeter. So just delete the initial
+                //        // character and look for sync again.
+                //        if (RecordFullSyncNotes)
+                //        {
+                //            HexString = "LongTube No Delimiter ";
+                //            for (iFor = 1; iFor <= LongTubeByteLen + RackSyncLen + 2; iFor++)
+                //                HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                //            Exception(HexString);
+                //        }
+                //        CountNoDelimeter(SyncCandidate);
+                //        Current = Mid(Current, 2);
+                //        nSyncSlip = nSyncSlip + 1;
+                //        RackInSync = false;
+                //    }
+                //}
+                //else
+                //{
+                //    // There is a proper sync, but not a long enough
+                //    // string, so here one must just wait.
+                //    StillHope = false;
+                //    break;
+                //}
+                    if (Current.size() > (LongTubeByteLen + RackSyncLen + 2))
+                    {
+                        //Current = Mid(Current, LongTubeByteLen + RackSyncLen + 3);
+                        Current.erase(Current.begin(), Current.begin() + LongTubeByteLen + RackSyncLen + 3);
                     }
                     else
                     {
-                        // Although there are enough characters, there
-                        // is no delimeter. So just delete the initial
-                        // character and look for sync again.
-                        if (RecordFullSyncNotes)
-                        {
-                            HexString = "LongTube No Delimiter ";
-                            for (iFor = 1; iFor <= LongTubeByteLen + RackSyncLen + 2; iFor++)
-                                HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
-                            Exception(HexString);
-                        }
-                        CountNoDelimeter(SyncCandidate);
-                        Current = Mid(Current, 2);
-                        nSyncSlip = nSyncSlip + 1;
-                        RackInSync = false;
+                        //Current = "";
+                        Current.clear();
                     }
                 }
                 else
                 {
-                    // There is a proper sync, but not a long enough
-                    // string, so here one must just wait.
-                    StillHope = false;
-                    break;
+                    // Although there are enough characters, there
+                    // is no delimeter here. So just delete the initial
+                    // character and look for sync again.
+                    if (RecordFullSyncNotes)
+                    {
+                        HexString = "LongTube No Delimiter ";
+                        //for (iFor = 1; iFor <= LongTubeByteLen + RackSyncLen + 2; iFor++)
+                        //    HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                        for (iFor = 0; iFor < LongTubeByteLen + RackSyncLen + 2; iFor++)
+                        {
+                            char temp = Current[iFor] >> 4;
+                            HexString.push_back(hexCharLUT[temp]);
+                            temp = Current[iFor] & 0x0f;
+                            HexString.push_back(hexCharLUT[temp]);
+                        }
+                        Exception(HexString);
+                    }
+                    CountNoDelimeter(SyncCandidate);
+                    //Current = Mid(Current, 2);
+                    Current.erase(Current.begin());
+                    nSyncSlip = nSyncSlip + 1;
+                    RackInSync = false;
                 }
-
-                break;
             }
+            else
+            {
+                // There is a proper sync, but not a long enough
+                // string, so here one must just wait.
+                StillHope = false;
+                //break;
+            }
+
+            //break;
+        }
+           
+        else
+        {
+            Current.erase(Current.begin());
+        }
+    
+
+            /* TODO rest of RackData()
+ /* TODO rest of RackData()
 
             case object _ when NgrTubeSync :
             {
@@ -6528,10 +6723,12 @@ Print #2, "NgrMessageSyncB: " & Mid$(Current, RackSyncLen + 1, NgrMessageByteLen
         }
     }
 /* TODO rest of RackData() */
-    if(MinuteFileOut.size() > 0)
-    {
-        wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
-        MinuteFile << MinuteFileOut << '\n' << std::flush;
+        if(MinuteFileOut.size() > 0)
+        {
+            wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
+            MinuteFile << MinuteFileOut << '\n' << std::flush;
+            MinuteFileOut.clear();
+        }
     }
 //    frmHouse.lblNCurrent(1).Caption = Strings.Format(Strings.Len(Current), "0"); //TODO connect to wx with event
 }

@@ -22,7 +22,9 @@ public:
 	void MakeCSVString(std::string& OpString);
 	void SetUpMaster(int MasterNum, std::string SetString);
 	void RackData();
-
+	void Exception(std::string Message);
+	void CountSync(std::string Candidate);
+	void CountNoDelimeter(std::string Candidate);
 
 #ifdef _WIN32  // Windows specific code
 	HANDLE openSerialPort(const char* portName, const char* serialParams);
