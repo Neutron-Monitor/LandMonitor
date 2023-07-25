@@ -34,7 +34,11 @@
 
 IMPLEMENT_APP(LandMonitorApp);
 
-
+class RackThread : public wxThread
+{
+public:
+    virtual ExitCode Entry();
+};
 
 //New C++ port variables
 LMMonitor* monitorF;
@@ -42,11 +46,16 @@ std::fstream MinuteFile;
 std::fstream BareTrapFile;
 int comRack_CommPort;
 std::string comRack_Settings;
+bool chkMinDiagnostics_Value = true; //TODO update from wx
+bool chkTolerateGaps_Value = true; //TODO update from wx
+const char* hexCharLUT = "0123456789ABCDEF"; //Hex char Lookup Table
 #ifdef _WIN32  // Windows specific code
 HANDLE comRack;
 #else  // Linux specific code
 int comRack;
 #endif
+
+
 
 
 //Converted Global variables from NuMonSubs-bas.txt
@@ -70,7 +79,7 @@ double BareTrapStartTime;
 int nBareTrapUnits;
 std::vector<int> BareTrapUnits(2);
 long nBaresTrapped;
-bool RecordRaw;
+bool RecordRaw = true;// TODO init false
 int RecordRawCount;
 int BypU1;
 int BypU2;
@@ -120,7 +129,8 @@ std::vector<long> RecordCount(5 + 2 * AbsoluteLastUnit);
 std::vector<bool> TimingLost(AbsoluteLastUnit);
 std::vector<bool> PrevTimingLost(AbsoluteLastUnit);
 bool RackInSync;
-long nRead;
+//long nRead;
+DWORD nRead;
 long nReadSecond;
 double nReadTotal;
 double nSyncSlip;
@@ -2764,7 +2774,9 @@ Input:
 Print #2, "SelCatch" & " " & CatchDecimateInit
 
  */
-    MinuteFile.close(); //TODO rest of Monitor_Form_Load()
+    comThread[0] = new RackThread();
+    comThread[0]->Run();
+    //MinuteFile.close(); //TODO rest of Monitor_Form_Load()
 
     return true; //TODO rest of Monitor_Form_Load()
     }
@@ -3893,7 +3905,10 @@ void LandMonitorApp::LogEntry(std::string Message)
         char fCurTime[20]; //for formatting timestamp -B
         strftime(fCurTime, std::size(fCurTime), "%y/%m/%d %T", std::localtime(&CurTime));
         //File.AppendAllText("PathToYourFile.txt", "Log: " + Message + " " + CurTime.ToString("yy/mm/dd hh:mm:ss") + Environment.NewLine);
-        MinuteFile << "Log: " << Message << ' ' << fCurTime << '\n';
+        {
+            wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
+            MinuteFile << "Log: " << Message << ' ' << fCurTime << '\n' << std::flush;
+        }
         //}
         //On Error GoTo NoStick;
         //if (UseMemStick) //TODO mem stick handling
@@ -4089,6 +4104,2438 @@ void LandMonitorApp::MakeCSVString(std::string& OpString) {
 }
 
 
+void LandMonitorApp::RackData()
+{
+    bool StillHope;
+    bool NewData;
+    std::string ReportString;
+    std::string DeviceData;
+    std::string RawDataRead;
+    std::string HexString;
+    std::string GPSHex;
+    std::string GPSString;
+    std::string GPSDiagnoseString;
+    std::string RdoAMessage;
+    std::string RdoBMessage;
+    std::string GPSB64;
+    std::string CtrHex;
+    std::string CtrB64;
+    std::string TubeHex;
+    std::string TubeB64;
+    std::string ErrHex;
+    std::string ErrB64;
+    std::string CommandA;
+    //std::string Dta;
+    uint8_t Dta[1600];
+    //std::string Current; //now static vector
+    static std::vector<uint8_t> Current;
+    std::string SyncCandidate;
+    int lRackBuffer;
+    int iFor;
+    int nUnit;
+    std::string LastGGA;
+    std::string Parse;
+    int nCom;
+    int nLen;
+    int GPSSecondRead;
+    int GPSMinuteRead;
+    int GPSHourRead;
+    std::string GPSLatRead;
+    std::string GPSLonRead;
+    std::string GPSGMTRead;
+    int GPSQualityRead;
+    int GPSNumSatRead;
+    int FreshCount;
+    std::string MinuteFileOut;
+    // Read the Rack port
+    ReadFile(comRack, &Dta, 1600, &nRead, NULL);
+    //Dta = comRack.Input;
+    //nRead = Strings.Len(Dta);
+    //if (nRead > 16000) //no longer needed as ReadFile will not return above max
+    //    Exception("Long input from rack: " + Format(nRead, "0"));
+    if (RecordRaw)
+    {
+        RawDataRead = "RAW: ";
+        //RawDataRead = RawDataRead + Right("     " + Format(nRead), 5) + " ";
+        RawDataRead += "     " + std::to_string(nRead) + ' ';
+        //for (iFor = 1; iFor <= nRead; iFor++)
+        //    RawDataRead = RawDataRead + Right("00" + Hex(Strings.Asc(Mid(Dta, iFor, 1))), 2);
+        //;
+        for (iFor = 0; iFor < nRead; iFor++)
+        {
+            //RawDataRead.push_back(hexCharLUT[Dta[iFor] >> 4]);
+            //RawDataRead.push_back(hexCharLUT[Dta[iFor] & 0x0f]);
+            char temp = Dta[iFor] >> 4;
+            RawDataRead.push_back(hexCharLUT[temp]);
+            temp = Dta[iFor] & 0x0f;
+            RawDataRead.push_back(hexCharLUT[temp]);
+        }
+        //RawDataRead.push_back('\n');
+        
+        MinuteFileOut += RawDataRead; //Buffer writes to file
+        /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+  Print #2, RawDataRead
+
+ */
+    }
+    /* TODO rest of RackData()
+
+//    frmHouse.lblNRead(1).Caption = Format(nRead, "0"); //TODO connect to wx with event
+    nReadSecond = nReadSecond + nRead;
+    nReadTotal = nReadTotal + nRead;
+//    frmHouse.lblSecRead.Caption = Format(nReadSecond, "0"); //TODO connect to wx with event
+    // Report large data string
+    lRackBuffer = Strings.Len(Current);
+    if (lRackBuffer > 4096)
+    {
+        Exception("Large Internal Rack Buffer: " + Format(lRackBuffer, "0"));
+        if (CrossMultiplicityEnabled)
+            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Large Internal Rack Buffer: " & Format$(lRackBuffer, "0")
+
+ */
+ /* TODO rest of RackData()
+     }
+    // Add the new data to the buffer
+    //if (RackInSync | (chkSyncFail.Value == 0))
+    if (RackInSync )//TODO connect to wx with event
+        nNoRackSync = 0;
+    else
+    {
+        nNoRackSync = nNoRackSync + Strings.Len(Dta);
+        if (nNoRackSync > 300)
+        {
+//            btnRackOnOff_Click(); //TODO connect to wx with event
+            LogEntry("Too Many Reads Without Sync");
+            nNoRackSync = 0;
+//            btnRackOnOff_Click(); //TODO connect to wx with event
+        }
+    }
+    // Diagnostic for sync failures
+    // If Not RackInSync Then
+    // HexString = Format$(Len(Current)) & " "
+    // For iFor = 1 To Len(Current)
+    // HexString = HexString & Right$("00" & Hex$(Asc(Mid$(Current, iFor, 1))), 2)
+    // Next iFor
+    // Print #2, "NoSync Current Initial: " & HexString
+    // HexString = Format$(Len(Dta)) & " "
+    // For iFor = 1 To Len(Dta)
+    // HexString = HexString & Right$("00" & Hex$(Asc(Mid$(Dta, iFor, 1))), 2)
+    // Next iFor
+    // Print #2, "NoSync Dta: " & HexString
+    // End If
+/* TODO rest of RackData()
+    Current = Current + Dta;
+    // If Not RackInSync Then
+    // HexString = Format$(Len(Current)) & " "
+    // For iFor = 1 To Len(Current)
+    // HexString = HexString & Right$("00" & Hex$(Asc(Mid$(Current, iFor, 1))), 2)
+    // Next iFor
+    // Print #2, "NoSync Current Plus: " & HexString
+    // End If
+    NewData = true;
+    StillHope = true;
+    while (StillHope & Strings.Len(Current) > RackSyncLen)
+    {
+        SyncCandidate = Left(Current, 4);
+        // Print #2, SyncCandidate, Len(Current)
+        switch (SyncCandidate)
+        {
+            case object _ when ShortTubeSync :
+            {
+                RawSyncCount(4) = RawSyncCount(4) + 1;
+                if (Strings.Len(Current) >= ShortTubeByteLen + RackSyncLen + 2)
+                {
+                    if (VerboseDiagnostics)
+                    {
+                        HexString = "";
+                        for (iFor = 1; iFor <= ShortTubeByteLen + RackSyncLen + 2; iFor++)
+                            HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                        ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+        Print #2, "TubeSync: " & HexString
+
+ */
+ /* TODO rest of RackData()
+                     }
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, ShortTubeByteLen + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            CountSync(SyncCandidate);
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                {
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+              Print #98, "Reset timing: No delimiter short tube"
+
+ */
+ /* TODO rest of RackData()
+                                     OrderTimingReset = true;
+                                }
+                            }
+                        }
+                        DeviceData = Mid(Current, RackSyncLen + 1, ShortTubeByteLen);
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "ShortTube found"
+
+ */
+ /* TODO rest of RackData()
+                         DecomShortTube(DeviceData);
+                        // Remove the message from the buffer
+                        if (Strings.Len(Current) > ShortTubeByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, ShortTubeByteLen + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        if (RecordFullSyncNotes)
+                        {
+                            HexString = "ShortTube No Delimiter ";
+                            for (iFor = 1; iFor <= ShortTubeByteLen + RackSyncLen + 2; iFor++)
+                                HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                            Exception(HexString);
+                        }
+                        CountNoDelimeter(SyncCandidate);
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when LongTubeSync :
+            {
+                RawSyncCount(3) = RawSyncCount(3) + 1;
+                if (Strings.Len(Current) >= LongTubeByteLen + RackSyncLen + 2)
+                {
+                    if (VerboseDiagnostics)
+                    {
+                        HexString = "";
+                        for (iFor = 1; iFor <= LongTubeByteLen + RackSyncLen + 2; iFor++)
+                            HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                        ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+        Print #2, "TubeSync: " & HexString
+
+ */
+ /* TODO rest of RackData()
+                     }
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, LongTubeByteLen + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            CountSync(SyncCandidate);
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                {
+//                                    if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                    if (chkMinDiagnostics_Value == 0) //TODO connect to wx with event
+                                        ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Reset timing: No delimiter long tube"
+
+ */
+ /* TODO rest of RackData()
+                                     OrderTimingReset = true;
+                                }
+                            }
+                        }
+                        DeviceData = Mid(Current, RackSyncLen + 1, LongTubeByteLen);
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "LongTube found"
+
+ */        // Remove the message from the buffer
+ /* TODO rest of RackData()
+                         if (Strings.Len(Current) > LongTubeByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, LongTubeByteLen + RackSyncLen + 3);
+                        else
+                            Current = "";
+                        DecomLongTube(DeviceData);
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter. So just delete the initial
+                        // character and look for sync again.
+                        if (RecordFullSyncNotes)
+                        {
+                            HexString = "LongTube No Delimiter ";
+                            for (iFor = 1; iFor <= LongTubeByteLen + RackSyncLen + 2; iFor++)
+                                HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                            Exception(HexString);
+                        }
+                        CountNoDelimeter(SyncCandidate);
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when NgrTubeSync :
+            {
+                if (Strings.Len(Current) >= NgrTubeByteLen + RackSyncLen + 2)
+                {
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, NgrTubeByteLen + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+//                            if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                            if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                Exception("Sync " + SyncCandidate + " after " + Format(nSyncSlip));
+                            if (CrossMultiplicityEnabled)
+                            {
+                                if (frmMonitor.chkMinDiagnostics.Value == 0)
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                    OrderTimingReset = true;
+                            }
+                        }
+                        TubeB64 = Mid(Current, RackSyncLen + 1, NgrTubeByteLen);
+                        TubeHex = "";
+                        // Print #2, "TubeB64: " & TubeB64
+                        for (iFor = 1; iFor <= 51; iFor++)
+                            TubeHex = TubeHex + B64toHex(Mid(TubeB64, 4 * (iFor - 1) + 1, 4));
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+          Print #2, "NgrTubeSync: " & TubeHex
+
+ */
+ /* TODO rest of RackData()
+                         NgrDecomTube(TubeHex);
+                        // Remove the message from the buffer
+                        if (Strings.Len(Current) > NgrTubeByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, NgrTubeByteLen + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        HexString = "NgrTube No Delimiter ";
+                        for (iFor = 1; iFor <= NgrTubeByteLen + RackSyncLen + 2; iFor++)
+                            HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                        Exception(HexString);
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when CtrSync :
+            {
+                // Print #2, "Counter Here"
+                RawSyncCount(2) = RawSyncCount(2) + 1;
+                if (Strings.Len(Current) >= CtrByteLen + RackSyncLen + 2)
+                {
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, CtrByteLen + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            CountSync(SyncCandidate);
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                    if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                    {
+//                                    if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                        if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Reset timing: No delimiter counter"
+
+ */
+ /* TODO rest of RackData()
+                                     OrderTimingReset = true;
+                                }
+                            }
+                        }
+                        DeviceData = Mid(Current, RackSyncLen + 1, CtrByteLen);
+                        SequenceListString = SequenceListString + "C,";
+//                        if ((chkRecABSTiming.Value == 1)) //TODO connect to wx with event
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "CtrSync"
+
+ */
+ /* TODO rest of RackData()
+                         RecordCount(2) = RecordCount(2) + 1;
+                        if (VerboseDiagnostics)
+                        {
+                            HexString = "";
+                            for (iFor = 1; iFor <= CtrByteLen; iFor++)
+                                HexString = HexString + Right("00" + Hex(Asc(Mid(Current, RackSyncLen + iFor))), 2);
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+          Print #2, "CtrSync: " & HexString
+
+ */
+ /* TODO rest of RackData()
+                         }
+                        DecomCtrIO(DeviceData);
+                        ResetSent = false;
+                        // Remove the message from the buffer
+                        if (Strings.Len(Current) > CtrByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, CtrByteLen + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        if (RecordFullSyncNotes)
+                        {
+                            HexString = "Counter No Delimiter ";
+                            for (iFor = 1; iFor <= CtrByteLen + RackSyncLen + 2; iFor++)
+                                HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                            Exception(HexString);
+                        }
+                        CountNoDelimeter(SyncCandidate);
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when NgrCtrSync :
+            {
+                if (Strings.Len(Current) >= NgrCtrByteLen + RackSyncLen + 2)
+                {
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, NgrCtrByteLen + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            Exception("Sync " + SyncCandidate + " after " + Format(nSyncSlip));
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                    if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                        OrderTimingReset = true;
+                            }
+                        }
+                        CtrB64 = Mid(Current, RackSyncLen + 1, NgrCtrByteLen);
+                        CtrHex = "";
+                        // Print #2, "CtrB64: " & CtrB64
+                        for (iFor = 1; iFor <= 51; iFor++)
+                            CtrHex = CtrHex + B64toHex(Mid(CtrB64, 4 * (iFor - 1) + 1, 4));
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+          Print #2, "NgrCtrSync: " & CtrHex
+
+ */
+ /* TODO rest of RackData()
+                         NgrDecomCtrIO(CtrHex);
+                        ResetSent = false;
+                        // Remove the message from the buffer
+                        if (Strings.Len(Current) > NgrCtrByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, NgrCtrByteLen + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        HexString = "NGR Counter No Delimiter ";
+                        if (RecordFullSyncNotes)
+                        {
+                            for (iFor = 1; iFor <= NgrCtrByteLen + RackSyncLen + 2; iFor++)
+                                HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                        }
+                        Exception("No Delimiter NgrCtr" + HexString);
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when NgrErrorSyncA :
+            {
+                if (Strings.Len(Current) >= NgrErrorByteLenA + RackSyncLen + 2)
+                {
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, NgrErrorByteLenA + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            Exception("Sync " + SyncCandidate + " after " + Format(nSyncSlip));
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                    if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                        OrderTimingReset = true;
+                            }
+                        }
+                        ErrB64 = Mid(Current, RackSyncLen + 1, NgrErrorByteLenA);
+                        ErrHex = "";
+                        // Print #2, "ErrB64: " & ErrB64
+                        for (iFor = 1; iFor <= 2; iFor++)
+                            ErrHex = ErrHex + B64toHex(Mid(ErrB64, 4 * (iFor - 1) + 1, 4));
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+          Print #2, "NgrErrSync: " & ErrHex
+
+ */
+ /* TODO rest of RackData()
+                         Exception("NGR A Error: " + ErrHex);
+                        LogEntry("NGR A Error: " + ErrHex);
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+          Print #2, "NGR A ErrorSync: " & ErrHex
+
+ */
+ // Remove the message from the buffer
+/* TODO rest of RackData()
+                        if (Strings.Len(Current) > NgrErrorByteLenA + RackSyncLen + 2)
+                            Current = Mid(Current, NgrErrorByteLenA + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        Exception("No Delimiter NgrErrorSyncA");
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when DoneSync :
+            {
+                RawSyncCount(1) = RawSyncCount(1) + 1;
+                if (Strings.Len(Current) >= DoneByteLen + RackSyncLen + 2)
+                {
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, DoneByteLen + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            CountSync(SyncCandidate);
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                {
+                                    OrderTimingReset = true;
+//                                    if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                    if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                        ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Reset timing: No delimiter on Done"
+
+ */
+ /* TODO rest of RackData()
+                                 }
+                            }
+                        }
+                        // This is a valid Done indicator
+                        // Count it
+                        RecordCount(1) = RecordCount(1) + 1;
+                        SequenceListString = SequenceListString + "D,";
+//                        if (VerboseDiagnostics | (chkRecABSTiming.Value == 1)) //TODO connect to wx with event
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "DoneSync"
+
+ */
+ /* TODO rest of RackData()
+                         DoneMessageCount = DoneMessageCount + 1;
+//                        frmHouse.lblDoneCount.Caption = Format(DoneMessageCount); //TODO connect to wx with event
+                        // Remove the message from the buffer
+                        if (Strings.Len(Current) > DoneByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, DoneByteLen + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        CountNoDelimeter(SyncCandidate);
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when NgrDoneSync :
+            {
+                if (Strings.Len(Current) >= NgrDoneByteLen + RackSyncLen + 2)
+                {
+                    if (!RackInSync)
+                    {
+                        RackInSync = true;
+                        Exception("Sync " + SyncCandidate + " after " + Format(nSyncSlip));
+                        if (CrossMultiplicityEnabled)
+                        {
+//                            if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                            if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                            if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                            if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                OrderTimingReset = true;
+                        }
+                    }
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, NgrDoneByteLen + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        // This is a valid Done indicator
+                        // Count it
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "NgrDoneSync"
+
+ */
+ /* TODO rest of RackData()
+                         DoneMessageCount = DoneMessageCount + 1;
+//                        frmHouse.lblDoneCount.Caption = Format(DoneMessageCount); //TODO connect to wx with event
+                        SendCommand(CmdAcknowledge);
+                        // Remove the message from the buffer
+                        if (Strings.Len(Current) > NgrDoneByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, NgrDoneByteLen + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        Exception("No Delimiter NgrDoneSync");
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when NgrGPSSync :
+            {
+                // This code is obsolete. The proper handling of the GPS record is now
+                // much more elaborate. This is here mainly to illustrate how to extract
+                // the GPS data from the NGR stream.
+                if (Strings.Len(Current) >= NgrGPSByteLen + RackSyncLen + 2)
+                {
+                    // Print #2, "Current NgrGPSSync: " & Current
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, NgrGPSByteLen + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            Exception("Sync " + SyncCandidate + " after " + Format(nSyncSlip));
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                    OrderTimingReset = true;
+                            }
+                        }
+                        // This is a valid transmission from the GPS Master
+                        GPSB64 = Mid(Current, RackSyncLen + 1, NgrGPSByteLen);
+                        GPSString = "";
+                        GPSHex = "";
+                        // Print #2, "GPSB64: " & GPSB64
+                        for (iFor = 1; iFor <= 16; iFor++)
+                            GPSHex = GPSHex + B64toHex(Mid(GPSB64, 4 * (iFor - 1) + 1, 4));
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "NgrGPSSync: " & GPSHex
+
+ */        // The Ngr Readout combines the old GPS2 (SYNC) and GPS1 (LGPS)
+ // This section of code derives from GPS2
+/* TODO rest of RackData()
+                        NgrGPSMessageCount = NgrGPSMessageCount + 1;
+//                        frmHouse.lblnGPSSync(1).Caption = Format(NgrGPSMessageCount); //TODO connect to wx with event
+                        GPSSyncSecond = System.Convert.ToInt32("&H" + Left(GPSHex, 2));
+                        if (Mid(GPSHex, 3, 2) == "30")
+                        {
+                            GPSFresh = false;
+//                            frmHouse.lblGPSSync.Caption = Format(GPSSyncSecond) + " " + "Stale"; //TODO connect to wx with event
+                        }
+                        else
+                        {
+                            GPSFresh = true;
+//                            frmHouse.lblGPSSync.Caption = Format(GPSSyncSecond) + " " + "Fresh"; //TODO connect to wx with event
+                        }
+                        // This section of code derives from GPS1
+                        for (iFor = 1; iFor <= 44; iFor++)
+                            GPSString = GPSString + Chr(System.Convert.ToInt32("&H" + Mid(GPSHex, 2 * (iFor - 1) + 5, 2)));
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "GPSString: " & GPSString
+
+ */
+ /* TODO rest of RackData()
+                         if (Left(GPSString, 7) == "$GPGGA,")
+                        {
+                            // This is a proper GPS message
+                            lblLatestGPS.Caption = Mid(GPSString, 8, GPS1ByteLen - 7) + " at " + Format(CurTime, "yy/mm/dd hh:mm:ss");
+                            ShowRackGPSData(Mid(GPSString, 8, GPS1ByteLen - 7));
+                        }
+                        // Remove the message from the buffer
+                        if (Strings.Len(Current) > NgrGPSByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, NgrGPSByteLen + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        Exception("No Delimiter NgrGPS");
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when GPSSync :
+            {
+                // Print #2, "GPS Here", GPSByteLen + RackSyncLen + 2
+                RawSyncCount(0) = RawSyncCount(0) + 1;
+                // The GPS readout is formatted as two independent records,
+                // but they always appear together, so treat this as one record.
+                if (Strings.Len(Current) >= GPSByteLen + RackSyncLen + 2)
+                {
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, GPSByteLen + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        // Print #2, "GPS Starting"
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            CountSync(SyncCandidate);
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                {
+                                    OrderTimingReset = true;
+//                                    if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                    if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                        ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Reset timing: No delimiter GPS"
+
+ */
+ /* TODO rest of RackData()
+                                 }
+                            }
+                        }
+                        DeviceData = Mid(Current, RackSyncLen + 1, GPSByteLen);
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "GPS found"
+
+ */
+ /* TODO rest of RackData()
+                         DecomGPS(DeviceData);
+                        // Remove the message from the buffer
+                        // Print #2, "Remove GPS String", SequenceSecond, Len(Current)
+                        if (Strings.Len(Current) > GPSByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, GPSByteLen + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        if (RecordFullSyncNotes)
+                        {
+                            HexString = "GPS No Delimiter ";
+                            for (iFor = 1; iFor <= GPSByteLen + RackSyncLen + 2; iFor++)
+                                HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                            Exception(HexString);
+                        }
+                        CountNoDelimeter(SyncCandidate);
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when NgrCommandSyncA :
+            {
+                if (Strings.Len(Current) >= NgrCommandByteLenA + RackSyncLen + 2)
+                {
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, NgrCommandByteLenA + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        // This is a valid command message from Readout A
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            Exception("Sync " + SyncCandidate + " after " + Format(nSyncSlip));
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                    OrderTimingReset = true;
+                            }
+                        }
+                        CommandA = Mid(Current, RackSyncLen + 1, NgrCommandByteLenA);
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "NgrCommandA: " & CommandA
+
+ */
+//                        lblCommandSeenTime.Caption = Format(CurTime, "yy/mm/dd hh:mm:ss"); //TODO connect to wx with event
+//                        lblCommandSeen.Caption = CommandA; //TODO connect to wx with event
+/* TODO rest of RackData()
+                        if (Strings.InStr(CommandA, "Ackn") == 0)
+                            LogEntry("NgrCommandA: " + CommandA);
+                        if (Strings.Len(Current) > GPS2ByteLen + RackSyncLen + 2)
+                            Current = Mid(Current, NgrCommandByteLenA + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        Exception("No Delimiter NgrCommandSyncA");
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when NgrMessageSyncA :
+            {
+                if (Strings.Len(Current) >= NgrMessageByteLenA + RackSyncLen + 2)
+                {
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, NgrMessageByteLenA + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            Exception("Sync " + SyncCandidate + " after " + Format(nSyncSlip));
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                    if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                        OrderTimingReset = true;
+                            }
+                        }
+                        // This is a valid message from Readout A
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "NgrMessageSyncA: " & Mid$(Current, RackSyncLen + 1, NgrMessageByteLenA)
+
+ */
+ /* TODO rest of RackData()
+                         RdoAMessage = Mid(Current, RackSyncLen + 1, NgrMessageByteLenA);
+                        HandleRdoAMessage(RdoAMessage);
+                        if (Strings.Len(Current) > NgrMessageByteLenA + RackSyncLen + 2)
+                            Current = Mid(Current, NgrMessageByteLenA + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        Exception("No Delimiter NgrMessageSyncA");
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            case object _ when NgrMessageSyncB :
+            {
+                if (Strings.Len(Current) >= NgrMessageByteLenB + RackSyncLen + 2)
+                {
+                    // The string is long enough, look for delimiter
+                    if (Mid(Current, NgrMessageByteLenB + RackSyncLen + 1, 2) == CRLF)
+                    {
+                        if (!RackInSync)
+                        {
+                            RackInSync = true;
+                            Exception("Sync " + SyncCandidate + " after " + Format(nSyncSlip));
+                            if (CrossMultiplicityEnabled)
+                            {
+//                                if (frmMonitor.chkMinDiagnostics.Value == 0) //TODO connect to wx with event
+                                if (chkMinDiagnostics_Value == false) //TODO connect to wx with event
+                                    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, "Sync after " & Format$(nSyncSlip)
+
+ */
+//                                if (chkTolerateGaps.Value == 0) //TODO connect to wx with event
+/* TODO rest of RackData()
+                                    if (chkTolerateGaps_Value == false) //TODO connect to wx with event
+                                        OrderTimingReset = true;
+                            }
+                        }
+                        // This is a valid message from Readout B
+                        if (VerboseDiagnostics)
+                            ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "NgrMessageSyncB: " & Mid$(Current, RackSyncLen + 1, NgrMessageByteLenB)
+
+ */
+ /* TODO rest of RackData()
+                         RdoBMessage = Mid(Current, RackSyncLen + 1, NgrMessageByteLenB);
+                        HandleRdoBMessage(RdoBMessage);
+                        if (Strings.Len(Current) > NgrMessageByteLenB + RackSyncLen + 2)
+                            Current = Mid(Current, NgrMessageByteLenB + RackSyncLen + 3);
+                        else
+                            Current = "";
+                    }
+                    else
+                    {
+                        // Although there are enough characters, there
+                        // is no delimeter here. So just delete the initial
+                        // character and look for sync again.
+                        Exception("No Delimiter NgrMessageSyncB");
+                        Current = Mid(Current, 2);
+                        nSyncSlip = nSyncSlip + 1;
+                        RackInSync = false;
+                    }
+                }
+                else
+                {
+                    // There is a proper sync, but not a long enough
+                    // string, so here one must just wait.
+                    StillHope = false;
+                    break;
+                }
+
+                break;
+            }
+
+            default:
+            {
+                // The start of the buffer does not have a recognized sync sequence
+                if (NewData)
+                {
+                    if (RecordFullSyncNotes)
+                    {
+                        HexString = "No Sync Starts Current: ";
+                        for (iFor = 1; iFor <= Strings.Len(Current); iFor++)
+                            HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
+                        Exception(HexString);
+                    }
+                    // Only do this once per read
+                    NewData = false;
+                }
+                Current = Mid(Current, 2);
+                nSyncSlip = nSyncSlip + 1;
+                RackInSync = false;
+                break;
+            }
+        }
+    }
+/* TODO rest of RackData() */
+    if(MinuteFileOut.size() > 0)
+    {
+        wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
+        MinuteFile << MinuteFileOut << '\n' << std::flush;
+    }
+//    frmHouse.lblNCurrent(1).Caption = Strings.Format(Strings.Len(Current), "0"); //TODO connect to wx with event
+}
+
 #ifdef _WIN32  // Windows specific code
 
 HANDLE LandMonitorApp::openSerialPort(const char* portName, const char* serialParams)
@@ -4145,6 +6592,83 @@ HANDLE LandMonitorApp::openSerialPort(const char* portName, const char* serialPa
     return hSerial;
 }
 
+
+
+
+/*
+void comRack_OnComm()
+{
+    std::string EVMsg;
+    EVMsg = "EVMsg";
+
+    // Branch according to the CommEvent Prop..
+    switch (comRack.CommEvent)
+    {
+        // Event messages
+    case MSCOMM_EV_RECEIVE:
+        RackData();
+        EVMsg = "";
+        break;
+    case MSCOMM_EV_SEND:
+        EVMsg = "";
+        break;
+    case MSCOMM_EV_CTS:
+        EVMsg = "Change in CTS Detected";
+        break;
+    case MSCOMM_EV_DSR:
+        EVMsg = "Change in DSR Detected";
+        break;
+    case MSCOMM_EV_CD:
+        EVMsg = "Change in CD Detected";
+        break;
+    case MSCOMM_EV_RING:
+        EVMsg = "The Phone is Ringing";
+        break;
+    case MSCOMM_EV_EOF:
+        EVMsg = "End of File Detected";
+        break;
+        // Error messages
+    case MSCOMM_ER_BREAK:
+        EVMsg = "Break Received";
+        break;
+    case MSCOMM_ER_CTSTO:
+        EVMsg = "CTS Timeout";
+        break;
+    case MSCOMM_ER_DSRTO:
+        EVMsg = "DSR Timeout";
+        break;
+    case MSCOMM_ER_FRAME:
+        EVMsg = "Framing Error";
+        break;
+    case MSCOMM_ER_OVERRUN:
+        EVMsg = "Overrun Error";
+        break;
+    case MSCOMM_ER_CDTO:
+        EVMsg = "Carrier Detect Timeout";
+        break;
+    case MSCOMM_ER_RXOVER:
+        EVMsg = "Receive Buffer Overflow";
+        Nrbo = Neof + 1;
+        Tlrbo = CurTime;
+        break;
+    case MSCOMM_ER_RXPARITY:
+        EVMsg = "Parity Error";
+        break;
+    case MSCOMM_ER_TXFULL:
+        EVMsg = "Transmit Buffer Full";
+        break;
+    default:
+        EVMsg = "Unknown error or event";
+        break;
+    }
+
+    if (EVMsg.length() > 0)
+    {
+        Exception("comRack Event " + EVMsg);
+        EVMsg = "";
+    }
+}
+*/
 #else  // Linux specific code
 int LandMonitorApp::openSerialPort(const char* portName, const char* serialParams)
 {
@@ -4224,3 +6748,25 @@ int LandMonitorApp::openSerialPort(const char* portName, const char* serialParam
 
 #endif
 
+
+
+
+wxThread::ExitCode RackThread::Entry()
+{
+    while (true)
+    {
+        //char readBuf[50];
+        //DWORD bRead;
+        //ReadFile(comRack, &readBuf, 50, &bRead, NULL);
+        //if(bRead>0)
+        //{
+        //    wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
+        //    for (int i = 0; i < bRead; i++)
+        //        MinuteFile << std::hex << (int)readBuf[i];
+        //    MinuteFile << '\n' << std::flush;
+        //}
+        wxGetApp().RackData();
+    }
+    //MinuteFile.close();
+    return 0;
+}

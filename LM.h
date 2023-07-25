@@ -33,67 +33,84 @@
 ///////////////////////////////////////////////////////////////////////////////
 class Monitor : public wxFrame
 {
-private:
+	private:
 
-protected:
-	wxStaticText* m_staticText1;
-	wxStaticText* m_staticText6;
-	wxStaticText* m_staticText7;
-	wxStaticText* m_staticText11;
-	wxStaticText* m_staticText111;
-	wxStaticText* m_staticText1111;
-	wxStaticText* m_staticText11111;
-	wxStaticText* m_staticText111111;
-	wxStaticText* m_staticText61;
-	wxStaticText* m_staticText71;
-	wxStaticText* m_staticText611;
-	wxStaticText* m_staticText711;
-	wxStaticText* m_staticText12;
-	wxStaticText* m_staticText121;
-	wxStaticText* m_staticText122;
-	wxStaticText* m_staticText1221;
-	wxStaticText* m_staticText1222;
-	wxStaticText* m_staticText1223;
-	wxStaticText* m_staticText12231;
-	wxStaticText* m_staticText12232;
-	wxStaticText* m_staticText12233;
-	wxStaticText* m_staticText12234;
-	wxStaticText* m_staticText53;
-	wxStaticText* m_staticText54;
-	wxStaticText* m_staticText55;
-	wxStaticText* m_staticText56;
-	wxStaticText* m_staticText57;
-	wxStaticText* m_staticText571;
-	wxStaticText* m_staticText58;
-	wxStaticText* m_staticText581;
-	wxStaticText* m_staticText59;
-	wxStaticText* m_staticText591;
-	wxStaticText* m_staticText60;
-	wxStaticText* m_staticText70;
-	wxStaticText* m_staticText712;
-	wxStaticText* m_staticText62;
-	wxStaticText* m_staticText72;
-	wxStaticText* m_staticText80;
-	wxStaticText* m_staticText81;
-	wxCheckBox* m_checkBox3;
-	wxStaticText* m_staticText82;
-	wxButton* m_button_psi;
-	wxStaticText* m_staticText84;
-	wxCheckBox* m_checkBox2;
-	wxStaticText* lblSoftVersion;
-	wxStaticText* m_quickBookStatus;
-	wxStaticText* m_staticText88;
+	protected:
+		wxStaticText* m_staticText1;
+		wxStaticText* m_staticText6;
+		wxStaticText* m_staticText7;
+		wxStaticText* m_staticText11;
+		wxStaticText* m_staticText111;
+		wxStaticText* m_staticText1111;
+		wxStaticText* m_staticText11111;
+		wxStaticText* m_staticText111111;
+		wxStaticText* m_staticText61;
+		wxStaticText* m_staticText71;
+		wxStaticText* m_staticText611;
+		wxStaticText* m_staticText711;
+		wxStaticText* m_staticText12;
+		wxStaticText* m_staticText121;
+		wxStaticText* m_staticText122;
+		wxStaticText* m_staticText1221;
+		wxStaticText* m_staticText1222;
+		wxStaticText* m_staticText1223;
+		wxStaticText* m_staticText12231;
+		wxStaticText* m_staticText12232;
+		wxStaticText* m_staticText12233;
+		wxStaticText* m_staticText12234;
+		wxStaticText* m_staticText53;
+		wxStaticText* m_staticText54;
+		wxStaticText* m_staticText55;
+		wxStaticText* m_staticText56;
+		wxStaticText* m_staticText57;
+		wxStaticText* m_staticText571;
+		wxStaticText* m_staticText58;
+		wxStaticText* m_staticText581;
+		wxStaticText* m_staticText59;
+		wxStaticText* m_staticText591;
+		wxStaticText* m_staticText60;
+		wxStaticText* m_staticText70;
+		wxStaticText* m_staticText712;
+		wxStaticText* m_staticText62;
+		wxStaticText* m_staticText72;
+		wxStaticText* m_staticText80;
+		wxStaticText* m_staticText81;
+		wxCheckBox* m_checkBox3;
+		wxStaticText* m_staticText82;
+		wxButton* m_button_psi;
+		wxStaticText* m_staticText84;
+		wxCheckBox* m_checkBox2;
+		wxStaticText* lblSoftVersion;
+		wxStaticText* m_quickBookStatus;
+		wxStaticText* m_staticText88;
 
-	// Virtual event handlers, override them in your derived class
-	virtual void m_button_psiOnButtonClick(wxCommandEvent& event) { event.Skip(); }
-	virtual void m_quickBookStatusOnLeftDown(wxMouseEvent& event) { event.Skip(); }
+		// Virtual event handlers, override them in your derived class
+		virtual void m_button_psiOnButtonClick( wxCommandEvent& event ) { event.Skip(); }
+		virtual void m_quickBookStatusOnLeftDown( wxMouseEvent& event ) { event.Skip(); }
 
 
-public:
+	public:
 
-	Monitor(wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Neutron Monitor on wxWidgets test"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize(1051, 647), long style = wxDEFAULT_FRAME_STYLE | wxTAB_TRAVERSAL);
+		Monitor( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Neutron Monitor on wxWidgets test"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 1051,647 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
 
-	~Monitor();
+		~Monitor();
+
+};
+
+///////////////////////////////////////////////////////////////////////////////
+/// Class House
+///////////////////////////////////////////////////////////////////////////////
+class House : public wxFrame
+{
+	private:
+
+	protected:
+
+	public:
+
+		House( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxEmptyString, const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 500,300 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
+
+		~House();
 
 };
 

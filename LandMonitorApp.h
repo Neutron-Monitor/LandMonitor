@@ -11,6 +11,8 @@
 class LandMonitorApp : public wxApp
 {
 public:
+	wxCriticalSection csMinuteFile;
+	wxThread * comThread[3];
 	virtual bool OnInit();
 	bool Monitor_Form_Load();
 	void LogEntry(std::string Message);
@@ -19,6 +21,8 @@ public:
 	float ChopSng(std::string InString);
 	void MakeCSVString(std::string& OpString);
 	void SetUpMaster(int MasterNum, std::string SetString);
+	void RackData();
+
 
 #ifdef _WIN32  // Windows specific code
 	HANDLE openSerialPort(const char* portName, const char* serialParams);
