@@ -25,6 +25,17 @@ public:
 	void Exception(std::string Message);
 	void CountSync(std::string Candidate);
 	void CountNoDelimeter(std::string Candidate);
+	void DecomLongTube(std::string LongTubeRecord);
+	void FillIntegerArray(int IntegerArray[], int nLast, std::string InputDataString);
+	void FillLongArray(long LongArray[], int nLast, std::string InputDataString);
+	void FillSingleArray(float SingleArray[], int nLast, std::string InputDataString);
+	void FillStringArray(std::string StringArray[], std::string InputDataString);
+	void EnterMonitorHis(float Value, int NumHis, int TypHis);
+	void EraseMonitorHis(float Value, int NumHis, int TypHis);
+	void Process800(std::string TubeRecord800);
+	int OffsetOldest(int RemAdr, int LookOffset);
+	int OffsetNewest(int RemAdr, int LookOffset);
+	std::string HistoryLine(int LocRing, int RemoteUnit);
 
 #ifdef _WIN32  // Windows specific code
 	HANDLE openSerialPort(const char* portName, const char* serialParams);

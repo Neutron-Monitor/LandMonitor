@@ -26,6 +26,7 @@
 #include <unistd.h>
 
 #endif
+using namespace std;
 
 
 #define MAJOR_VERSION 0 //changes on major revisions
@@ -49,6 +50,12 @@ std::string comRack_Settings;
 bool chkMinDiagnostics_Value = true; //TODO update from wx
 bool chkTolerateGaps_Value = true; //TODO update from wx
 const char* hexCharLUT = "0123456789ABCDEF"; //Hex char Lookup Table
+bool chkEmulate616_Value = true; //TODO update from wx
+bool chkLogZeroRemoteHits_Value = true; //TODO update from wx
+bool chkLogDuplicates_Value = true; //TODO update from wx
+bool chkRecABSTiming_Value = true; //TODO update from wx
+bool chkLogBadEvents_Value = true; //TODO update from wx
+
 #ifdef _WIN32  // Windows specific code
 HANDLE comRack;
 #else  // Linux specific code
@@ -77,7 +84,8 @@ bool BareTrapOpen;
 double BareTrapTime;
 double BareTrapStartTime;
 int nBareTrapUnits;
-std::vector<int> BareTrapUnits(2);
+//std::vector<int> BareTrapUnits(2);
+int BareTrapUnits[2];
 long nBaresTrapped;
 bool RecordRaw = true;// TODO init false
 int RecordRawCount;
@@ -95,8 +103,10 @@ long DecimateCounter;
 long DecimateModulo;
 int DiagnoseLimitCount;
 bool DiagnoseActive;
-std::vector<bool> Active(lDataRow);
-std::vector<int> ExTime(lDataRow);
+//std::vector<bool> Active(lDataRow);
+//std::vector<int> ExTime(lDataRow);
+bool Active[lDataRow];
+int ExTime[lDataRow];
 std::string BatSFTPSSE;
 std::string BatSFTPDay;
 std::string BatSFTPHHist;
@@ -123,11 +133,16 @@ const int RingLast = 1023;
 const int RingMod = 1024;
 const int LastRawSyncType = 4;
 const int MaxHitTrack = 5;
-std::vector<std::vector<long>> HitTrack(MaxHitTrack, std::vector<long>(AbsoluteLastUnit));
-std::vector<long> RawSyncCount(LastRawSyncType);
-std::vector<long> RecordCount(5 + 2 * AbsoluteLastUnit);
-std::vector<bool> TimingLost(AbsoluteLastUnit);
-std::vector<bool> PrevTimingLost(AbsoluteLastUnit);
+//std::vector<std::vector<long>> HitTrack(MaxHitTrack, std::vector<long>(AbsoluteLastUnit));
+//std::vector<long> RawSyncCount(LastRawSyncType);
+//std::vector<long> RecordCount(5 + 2 * AbsoluteLastUnit);
+//std::vector<bool> TimingLost(AbsoluteLastUnit);
+//std::vector<bool> PrevTimingLost(AbsoluteLastUnit);
+long HitTrack[MaxHitTrack][(AbsoluteLastUnit + 1)];
+long RawSyncCount[LastRawSyncType];
+long RecordCount[5 + 2 * AbsoluteLastUnit];
+bool TimingLost[(AbsoluteLastUnit + 1)];
+bool PrevTimingLost[(AbsoluteLastUnit + 1)];
 bool RackInSync;
 //long nRead;
 DWORD nRead;
@@ -139,10 +154,13 @@ double nOverflowGapA;
 double nLongTubeInternalErr;
 const int maxSyncType = 5;
 double SyncEventCount;
-std::vector<double> SyncTypeCount(maxSyncType);
-std::vector<double> NoDelimiterCount(maxSyncType);
+//std::vector<double> SyncTypeCount(maxSyncType);
+//std::vector<double> NoDelimiterCount(maxSyncType);
+double SyncTypeCount[maxSyncType];
+double NoDelimiterCount[maxSyncType];
 std::string SequenceListString;
-std::vector<std::vector<std::string>> LatestRemoteTiming(AbsoluteLastUnit, std::vector<std::string>(2));
+//std::vector<std::vector<std::string>> LatestRemoteTiming(AbsoluteLastUnit, std::vector<std::string>(2));
+std::string LatestRemoteTiming[(AbsoluteLastUnit + 1)][2];
 long nNoRackSync;
 double ShellRetCode;
 long n500Transmit;
@@ -157,21 +175,35 @@ int maxHitUnit;
 int UnitSpread;
 int LastContiguousUnit;
 std::string CatchDecimateInit;
-std::vector<int> CatchDecimateMod(maxCatchDecimate);
-std::vector<long> CatchAvailableCounter(maxCatchDecimate);
-std::vector<long> CatchDecimatedCounter(maxCatchDecimate);
-std::vector<std::vector<int>> HourCompactMatrix(maxCatchDecimate, std::vector<int>(AbsoluteLastUnit));
-std::vector<std::string> UnitList(AbsoluteLastUnit);
-std::vector<long> EmptyRemoteCount(AbsoluteLastUnit);
-std::vector<long> EarlyOverCount(AbsoluteLastUnit);
-std::vector<long> LateOverCount(AbsoluteLastUnit);
-std::vector<long> BadGPSCount(AbsoluteLastUnit);
-std::vector<long> UnitHitCount(AbsoluteLastUnit);
+//std::vector<int> CatchDecimateMod(maxCatchDecimate);
+//std::vector<long> CatchAvailableCounter(maxCatchDecimate);
+//std::vector<long> CatchDecimatedCounter(maxCatchDecimate);
+//std::vector<std::vector<int>> HourCompactMatrix(maxCatchDecimate, std::vector<int>(AbsoluteLastUnit));
+//std::vector<std::string> UnitList(AbsoluteLastUnit);
+//std::vector<long> EmptyRemoteCount(AbsoluteLastUnit);
+//std::vector<long> EarlyOverCount(AbsoluteLastUnit);
+//std::vector<long> LateOverCount(AbsoluteLastUnit);
+//std::vector<long> BadGPSCount(AbsoluteLastUnit);
+//std::vector<long> UnitHitCount(AbsoluteLastUnit);
+int CatchDecimateMod[maxCatchDecimate];
+long CatchAvailableCounter[maxCatchDecimate];
+long CatchDecimatedCounter[maxCatchDecimate];
+int HourCompactMatrix[maxCatchDecimate][(AbsoluteLastUnit + 1)];
+std::string UnitList[(AbsoluteLastUnit + 1)];
+long EmptyRemoteCount[(AbsoluteLastUnit + 1)];
+long EarlyOverCount[(AbsoluteLastUnit + 1)];
+long LateOverCount[(AbsoluteLastUnit + 1)];
+long BadGPSCount[(AbsoluteLastUnit + 1)];
+long UnitHitCount[(AbsoluteLastUnit + 1)];
 
-std::vector<std::vector<double>> HitTimes(AbsoluteLastUnit, std::vector<double>(maxHitsPerUnit));
-std::vector<std::vector<int>> HitPHA(AbsoluteLastUnit, std::vector<int>(maxHitsPerUnit));
-std::vector<std::vector<bool>> HitSelect(AbsoluteLastUnit, std::vector<bool>(maxHitsPerUnit));
-std::vector<std::string> HitFileName(AbsoluteLastUnit);
+//std::vector<std::vector<double>> HitTimes(AbsoluteLastUnit, std::vector<double>(maxHitsPerUnit));
+//std::vector<std::vector<int>> HitPHA(AbsoluteLastUnit, std::vector<int>(maxHitsPerUnit));
+//std::vector<std::vector<bool>> HitSelect(AbsoluteLastUnit, std::vector<bool>(maxHitsPerUnit));
+//std::vector<std::string> HitFileName(AbsoluteLastUnit);
+double HitTimes[(AbsoluteLastUnit + 1)][maxHitsPerUnit];
+int HitPHA[(AbsoluteLastUnit + 1)][maxHitsPerUnit];
+bool HitSelect[(AbsoluteLastUnit + 1)][maxHitsPerUnit];
+std::string HitFileName[(AbsoluteLastUnit + 1)];
 long nTotalHits;
 long nResolvedHits;
 //bool RunSecondCopy; //Replace with macro RUNSECONDCOPY in LandMonitor.h
@@ -224,10 +256,14 @@ float MonitorElapsedTime;
 // Remote Statistics Histograms
 const int RemStatHistLastChannel = 200;
 const int LastRemStatHist = 2;
-std::vector<std::vector<std::vector<long>>> RemStatHis(LastRemStatHist, std::vector<std::vector<long>>(RemStatHistLastChannel, std::vector<long>(AbsoluteLastUnit)));
-std::vector<long> RemStatHistMax(LastRemStatHist);
-std::vector<std::string> RemStatHistTag(LastRemStatHist);
-std::vector<int> EventsInSecond(AbsoluteLastUnit);
+//std::vector<std::vector<std::vector<long>>> RemStatHis(LastRemStatHist, std::vector<std::vector<long>>(RemStatHistLastChannel, std::vector<long>(AbsoluteLastUnit)));
+//std::vector<long> RemStatHistMax(LastRemStatHist);
+//std::vector<std::string> RemStatHistTag(LastRemStatHist);
+//std::vector<int> EventsInSecond(AbsoluteLastUnit);
+long RemStatHis[LastRemStatHist][RemStatHistLastChannel][(AbsoluteLastUnit + 1)];
+long RemStatHistMax[LastRemStatHist];
+std::string RemStatHistTag[LastRemStatHist];
+int EventsInSecond[(AbsoluteLastUnit + 1)];
 int StatHisNum;
 bool StatHist;
 bool MonitorHist;
@@ -263,10 +299,14 @@ int SecondCountsRingPointer;
 bool CatchSecondCounts;
 bool EnableRackCommands;
 
-std::vector<std::vector<float>> MonitorLimit(MonitorLimLast, std::vector<float>(AbsoluteLastHistogram));
-std::vector<std::vector<std::vector<float>>> CrossLimit(CrossLimLast, std::vector<std::vector<float>>(AbsoluteLastCrossHistogram, std::vector<float>(1)));
-std::vector<float> MonitorHisDumpInterval(AbsoluteLastHistogram);
-std::vector<std::vector<float>> CrossHisDumpInterval(AbsoluteLastHistogram, std::vector<float>(1));
+//std::vector<std::vector<float>> MonitorLimit(MonitorLimLast, std::vector<float>(AbsoluteLastHistogram));
+float MonitorLimit[(MonitorLimLast + 1)][(AbsoluteLastHistogram + 1)];
+//std::vector<std::vector<std::vector<float>>> CrossLimit(CrossLimLast, std::vector<std::vector<float>>(AbsoluteLastCrossHistogram, std::vector<float>(1)));
+float CrossLimit[(CrossLimLast + 1)][(AbsoluteLastCrossHistogram + 1)][2];
+//std::vector<float> MonitorHisDumpInterval(AbsoluteLastHistogram);
+float MonitorHisDumpInterval[(AbsoluteLastHistogram + 1)];
+//std::vector<std::vector<float>> CrossHisDumpInterval(AbsoluteLastHistogram, std::vector<float>(1));
+float CrossHisDumpInterval[(AbsoluteLastHistogram + 1)][2];
 // Histogram parameter mnemonics
 const int WMin = 0;
 const int WMax = 1;
@@ -294,21 +334,32 @@ std::vector<long> CrossLimColWidth(CrossLimColLast);
 std::vector<std::string> CrossLimColLabel(CrossLimColLast);
 const int MonitorDaColLast = 10;
 std::vector<long> MonitorDaColWidth(MonitorDaColLast);
-std::vector<std::string> MonitorDaColLabel(MonitorDaColLast);
+//std::vector<std::string> MonitorDaColLabel(MonitorDaColLast);
+std::string MonitorDaColLabel[MonitorDaColLast];
 // For the monitor histograms the last index is selected or unselected
 // The long and short timing have different second index ranges
 // For the cross histograms there is no selection. The last index
 // indicates short or long
-std::vector<std::vector<std::vector<long>>> MonitorHis(MonitorHisLastChan, std::vector<std::vector<long>>(AbsoluteLastHistogram, std::vector<long>(1)));
-std::vector<std::vector<std::vector<long>>> CrossHis(CrossHisLastChan, std::vector<std::vector<long>>(AbsoluteLastCrossHistogram, std::vector<long>(1)));
+//std::vector<std::vector<std::vector<long>>> MonitorHis(MonitorHisLastChan, std::vector<std::vector<long>>(AbsoluteLastHistogram, std::vector<long>(1)));
+long MonitorHis[(MonitorHisLastChan + 1)][(AbsoluteLastHistogram + 1)][2];
+//std::vector<std::vector<std::vector<long>>> CrossHis(CrossHisLastChan, std::vector<std::vector<long>>(AbsoluteLastCrossHistogram, std::vector<long>(1)));
+//// The following record errors in the channel assignments
+//std::vector<std::vector<long>> MonitorHisErr(AbsoluteLastHistogram, std::vector<long>(1));
+//std::vector<std::vector<long>> CrossHisErr(AbsoluteLastCrossHistogram, std::vector<long>(1));
+//std::vector<std::vector<std::vector<float>>> MonitorRing(MonitorRingLast, std::vector<std::vector<float>>(AbsoluteLastHistogram, std::vector<float>(1)));
+//std::vector<std::vector<int>> MonitorRingLoc(AbsoluteLastHistogram, std::vector<int>(1));
+//std::vector<std::vector<std::vector<float>>> CrossRing(CrossRingLast, std::vector<std::vector<float>>(AbsoluteLastCrossHistogram, std::vector<float>(1)));
+//std::vector<std::vector<int>> CrossRingLoc(AbsoluteLastCrossHistogram, std::vector<int>(1));
+//std::vector<std::string> MonitorHisTag(AbsoluteLastHistogram);
+long CrossHis[(CrossHisLastChan + 1)][(AbsoluteLastCrossHistogram + 1)][2];
 // The following record errors in the channel assignments
-std::vector<std::vector<long>> MonitorHisErr(AbsoluteLastHistogram, std::vector<long>(1));
-std::vector<std::vector<long>> CrossHisErr(AbsoluteLastCrossHistogram, std::vector<long>(1));
-std::vector<std::vector<std::vector<float>>> MonitorRing(MonitorRingLast, std::vector<std::vector<float>>(AbsoluteLastHistogram, std::vector<float>(1)));
-std::vector<std::vector<int>> MonitorRingLoc(AbsoluteLastHistogram, std::vector<int>(1));
-std::vector<std::vector<std::vector<float>>> CrossRing(CrossRingLast, std::vector<std::vector<float>>(AbsoluteLastCrossHistogram, std::vector<float>(1)));
-std::vector<std::vector<int>> CrossRingLoc(AbsoluteLastCrossHistogram, std::vector<int>(1));
-std::vector<std::string> MonitorHisTag(AbsoluteLastHistogram);
+long MonitorHisErr[(AbsoluteLastHistogram + 1)][2];
+long CrossHisErr[(AbsoluteLastCrossHistogram + 1)][2];
+float MonitorRing[(MonitorRingLast + 1)][(AbsoluteLastHistogram + 1)][2];
+int MonitorRingLoc[(AbsoluteLastHistogram + 1)][2];
+float CrossRing[(CrossRingLast + 1)][(AbsoluteLastCrossHistogram + 1)][2];
+int CrossRingLoc[(AbsoluteLastCrossHistogram + 1)][2];
+std::string MonitorHisTag[(AbsoluteLastHistogram + 1)];
 std::string MonitorSetFile;
 int CrossHisNum;
 int MonitorHisNum;
@@ -395,6 +446,9 @@ bool UseMemStick;
 std::string MemStickDrive;
 std::string StickFileName;
 const std::string DriveChoice = "ABCDEFGHIJKL";
+//std::vector<float> PressDecAIR(1);
+//std::vector<std::string> FullRdgAIR(1);
+//std::vector<std::string> RdgAIR(1);
 std::vector<float> PressDecAIR(1);
 std::vector<std::string> FullRdgAIR(1);
 std::vector<std::string> RdgAIR(1);
@@ -409,9 +463,11 @@ bool RecordSSE;
 std::vector<double> tInterval(AbsoluteLastUnit);
 std::vector<int> cMulti(AbsoluteLastUnit);
 // Command Settings File Control
-std::vector<int> Days(11);
+//std::vector<int> Days(11);
+int Days[12];
 const std::string DaysString = "0,31,59,90,120,151,181,212,243,273,304,334,";
-std::vector<int> DaysLeap(11);
+//std::vector<int> DaysLeap(11);
+int DaysLeap[12];
 const std::string DaysLeapString = "0,31,60,91,121,152,182,213,244,274,305,335,";
 std::string StationID;
 std::string StationTitle;
@@ -435,52 +491,95 @@ float OccupancyStep;
 std::vector<std::vector<long>> HitBufferOccupancy(AbsoluteLastUnit, std::vector<long>(LastOccupancyBin));
 float HitBufferWarn;
 float HitBufferTrip;
-std::vector<float> HitBufferLag(AbsoluteLastUnit);
-std::vector<int> NewestPointer(AbsoluteLastUnit);
-std::vector<int> OldestPointer(AbsoluteLastUnit);
-std::vector<bool> EarlyOverflow(AbsoluteLastUnit);
-std::vector<bool> LateOverflow(AbsoluteLastUnit);
-std::vector<int> LatestOverflowPointer(AbsoluteLastUnit);
-std::vector<std::vector<int>> RingPHA(RingLast, std::vector<int>(AbsoluteLastUnit));
-std::vector<std::vector<bool>> RingSelect(RingLast, std::vector<bool>(AbsoluteLastUnit));
-std::vector<std::vector<double>> RingRawFullTime(RingLast, std::vector<double>(AbsoluteLastUnit));
-std::vector<std::vector<double>> RingCorFullTime(RingLast, std::vector<double>(AbsoluteLastUnit));
-std::vector<std::vector<double>> RingGoodGPSTime(RingLast, std::vector<double>(AbsoluteLastUnit));
-std::vector<double> LastGoodGPSTime(AbsoluteLastUnit);
-std::vector<std::vector<double>> RingInterval(RingLast, std::vector<double>(AbsoluteLastUnit));
-std::vector<std::vector<long>> RingRawTOscLOB(RingLast, std::vector<long>(AbsoluteLastUnit));
-std::vector<std::vector<long>> RingRawTOscHOB(RingLast, std::vector<long>(AbsoluteLastUnit));
-std::vector<std::vector<long>> RingCorTOscHOB(RingLast, std::vector<long>(AbsoluteLastUnit));
-std::vector<std::vector<double>> RingPeriod(RingLast, std::vector<double>(AbsoluteLastUnit));
-std::vector<std::vector<double>> RingBase(RingLast, std::vector<double>(AbsoluteLastUnit));
-std::vector<std::vector<double>> RingGPSTime(RingLast, std::vector<double>(AbsoluteLastUnit));
+//std::vector<float> HitBufferLag(AbsoluteLastUnit);
+//std::vector<int> NewestPointer(AbsoluteLastUnit);
+//std::vector<int> OldestPointer(AbsoluteLastUnit);
+//std::vector<bool> EarlyOverflow(AbsoluteLastUnit);
+//std::vector<bool> LateOverflow(AbsoluteLastUnit);
+//std::vector<int> LatestOverflowPointer(AbsoluteLastUnit);
+//std::vector<std::vector<int>> RingPHA(RingLast, std::vector<int>(AbsoluteLastUnit));
+//std::vector<std::vector<bool>> RingSelect(RingLast, std::vector<bool>(AbsoluteLastUnit));
+//std::vector<std::vector<double>> RingRawFullTime(RingLast, std::vector<double>(AbsoluteLastUnit));
+//std::vector<std::vector<double>> RingCorFullTime(RingLast, std::vector<double>(AbsoluteLastUnit));
+//std::vector<std::vector<double>> RingGoodGPSTime(RingLast, std::vector<double>(AbsoluteLastUnit));
+//std::vector<double> LastGoodGPSTime(AbsoluteLastUnit);
+//std::vector<std::vector<double>> RingInterval(RingLast, std::vector<double>(AbsoluteLastUnit));
+//std::vector<std::vector<long>> RingRawTOscLOB(RingLast, std::vector<long>(AbsoluteLastUnit));
+//std::vector<std::vector<long>> RingRawTOscHOB(RingLast, std::vector<long>(AbsoluteLastUnit));
+//std::vector<std::vector<long>> RingCorTOscHOB(RingLast, std::vector<long>(AbsoluteLastUnit));
+//std::vector<std::vector<double>> RingPeriod(RingLast, std::vector<double>(AbsoluteLastUnit));
+//std::vector<std::vector<double>> RingBase(RingLast, std::vector<double>(AbsoluteLastUnit));
+//std::vector<std::vector<double>> RingGPSTime(RingLast, std::vector<double>(AbsoluteLastUnit));
+float HitBufferLag[(AbsoluteLastUnit + 1)];
+int NewestPointer[(AbsoluteLastUnit + 1)];
+int OldestPointer[(AbsoluteLastUnit + 1)];
+bool EarlyOverflow[(AbsoluteLastUnit + 1)];
+bool LateOverflow[(AbsoluteLastUnit + 1)];
+int LatestOverflowPointer[(AbsoluteLastUnit + 1)];
+int RingPHA[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+bool RingSelect[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+double RingRawFullTime[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+double RingCorFullTime[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+double RingGoodGPSTime[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+double LastGoodGPSTime[(AbsoluteLastUnit + 1)];
+double RingInterval[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+long RingRawTOscLOB[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+long RingRawTOscHOB[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+long RingCorTOscHOB[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+double RingPeriod[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+double RingBase[(RingLast + 1)][(AbsoluteLastUnit + 1)];
+double RingGPSTime[(RingLast + 1)][(AbsoluteLastUnit + 1)];
 
-std::vector<long> Counts(AbsoluteLastUnit);
-std::vector<long> CurrentScaler(AbsoluteLastUnit);
-std::vector<long> PriorScaler(AbsoluteLastUnit);
-std::vector<long> Deltas(AbsoluteLastUnit);
-std::vector<long> PrevMinuteCounters(AbsoluteLastUnit);
-std::vector<long> MinuteCounters(AbsoluteLastUnit);
-std::vector<long> MinuteDeltas(AbsoluteLastUnit);
-std::vector<int> FirmVersion(AbsoluteLastUnit);
-std::vector<std::string> DisplayTag(LastDisplayTag);
-std::vector<std::string> UnitTag(AbsoluteLastUnit);
-std::vector<long> ResetDeltaRef(AbsoluteLastUnit);
-std::vector<bool> NotSeenYet(AbsoluteLastUnit);
-std::vector<std::vector<long>> House(6, std::vector<long>(AbsoluteLastUnit));
-std::vector<long> Below(AbsoluteLastUnit);
-std::vector<long> PrevInArray(AbsoluteLastUnit);
-std::vector<long> InArray(AbsoluteLastUnit);
-std::vector<long> Above(AbsoluteLastUnit);
-std::vector<long> HrBelow(AbsoluteLastUnit);
-std::vector<long> HrIn(AbsoluteLastUnit);
-std::vector<long> HrAbove(AbsoluteLastUnit);
-std::vector<long> MinBelow(AbsoluteLastUnit);
-std::vector<long> MinIn(AbsoluteLastUnit);
-std::vector<long> MinAbove(AbsoluteLastUnit);
+//std::vector<long> Counts(AbsoluteLastUnit);
+//std::vector<long> CurrentScaler(AbsoluteLastUnit);
+//std::vector<long> PriorScaler(AbsoluteLastUnit);
+//std::vector<long> Deltas(AbsoluteLastUnit);
+//std::vector<long> PrevMinuteCounters(AbsoluteLastUnit);
+//std::vector<long> MinuteCounters(AbsoluteLastUnit);
+//std::vector<long> MinuteDeltas(AbsoluteLastUnit);
+//std::vector<int> FirmVersion(AbsoluteLastUnit);
+//std::vector<std::string> DisplayTag(LastDisplayTag);
+//std::vector<std::string> UnitTag(AbsoluteLastUnit);
+//std::vector<long> ResetDeltaRef(AbsoluteLastUnit);
+//std::vector<bool> NotSeenYet(AbsoluteLastUnit);
+//std::vector<std::vector<long>> House(6, std::vector<long>(AbsoluteLastUnit));
+//std::vector<long> Below(AbsoluteLastUnit);
+//std::vector<long> PrevInArray(AbsoluteLastUnit);
+//std::vector<long> InArray(AbsoluteLastUnit);
+//std::vector<long> Above(AbsoluteLastUnit);
+//std::vector<long> HrBelow(AbsoluteLastUnit);
+//std::vector<long> HrIn(AbsoluteLastUnit);
+//std::vector<long> HrAbove(AbsoluteLastUnit);
+//std::vector<long> MinBelow(AbsoluteLastUnit);
+//std::vector<long> MinIn(AbsoluteLastUnit);
+//std::vector<long> MinAbove(AbsoluteLastUnit);
+long Counts[(AbsoluteLastUnit + 1)];
+long CurrentScaler[(AbsoluteLastUnit + 1)];
+long PriorScaler[(AbsoluteLastUnit + 1)];
+long Deltas[(AbsoluteLastUnit + 1)];
+long PrevMinuteCounters[(AbsoluteLastUnit + 1)];
+long MinuteCounters[(AbsoluteLastUnit + 1)];
+long MinuteDeltas[(AbsoluteLastUnit + 1)];
+int FirmVersion[(AbsoluteLastUnit + 1)];
+std::string DisplayTag[LastDisplayTag];
+std::string UnitTag[(AbsoluteLastUnit + 1)];
+long ResetDeltaRef[(AbsoluteLastUnit + 1)];
+bool NotSeenYet[(AbsoluteLastUnit + 1)];
+long House[6][(AbsoluteLastUnit + 1)];
+long Below[(AbsoluteLastUnit + 1)];
+long PrevInArray[(AbsoluteLastUnit + 1)];
+long InArray[(AbsoluteLastUnit + 1)];
+long Above[(AbsoluteLastUnit + 1)];
+long HrBelow[(AbsoluteLastUnit + 1)];
+long HrIn[(AbsoluteLastUnit + 1)];
+long HrAbove[(AbsoluteLastUnit + 1)];
+long MinBelow[(AbsoluteLastUnit + 1)];
+long MinIn[(AbsoluteLastUnit + 1)];
+long MinAbove[(AbsoluteLastUnit + 1)];
 double LongIntervalLimit;
 const int lRoger = 4;
-std::vector<std::string> RogersRing(lRoger);
+//std::vector<std::string> RogersRing(lRoger);
+std::string RogersRing[lRoger];
 int RogersRingPointer;
 std::string CRLF;
 std::string CR;
@@ -2078,7 +2177,8 @@ Input:
         {
             UnitListString = InputStr.substr( nKey + 2, std::string::npos); //replacement for Mid -B
             MakeCSVString(UnitListString);
-            while (UnitListString.find(',') > 0)
+            //while (UnitListString.find(',') > 0)
+            while (UnitListString.find(',') != std::string::npos)
             {
                 NumberOfBares = NumberOfBares + 1;
                 nComma = UnitListString.find(',');
@@ -2098,7 +2198,8 @@ Input:
         {
             UnitListString = InputStr.substr( nKey + 2, std::string::npos); //replacement for Mid -B
             MakeCSVString(UnitListString);
-            while (UnitListString.find(',') > 0)
+            //while (UnitListString.find(',') > 0)
+            while (UnitListString.find(',') != std::string::npos)
             {
                 nComma = UnitListString.find(',');
                 EligibleCrossUnit[strtol(UnitListString.c_str(), NULL, 10)] = true;
@@ -2414,7 +2515,7 @@ Input:
     {
         PressureRing[iFor] = 0; //manual # removal -B
         ValidRingPressure[iFor] = false;
-    };/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    }/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -2454,7 +2555,8 @@ Input:
 Print #2, "HisParPHA300" & " " & HisParPHA300
 
  */
-    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    MinuteFile << ("HisParPHA300" + ' ' + HisParPHA300 + '\n');
+        /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -2494,7 +2596,8 @@ Input:
 Print #2, "HisParPHA600" & " " & HisParPHA600
 
  */
-    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    MinuteFile << ("HisParPHA600" + ' ' + HisParPHA600 + '\n');
+    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -2534,7 +2637,8 @@ Input:
 Print #2, "HisParPHA700" & " " & HisParPHA700
 
  */
-    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    MinuteFile << ("HisParPHA700" + ' ' + HisParPHA700 + '\n');
+    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -2574,7 +2678,8 @@ Input:
 Print #2, "HisParPHA800" & " " & HisParPHA800
 
  */
-    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    MinuteFile << ("HisParPHA800" + ' ' + HisParPHA800 + '\n');
+    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -2614,7 +2719,8 @@ Input:
 Print #2, "HisParMPS" & " " & HisParMPS
 
  */
-    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    MinuteFile << ("HisParMPS" + ' ' + HisParMPS + '\n');
+    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -2654,7 +2760,8 @@ Input:
 Print #2, "HisParMPL" & " " & HisParMPL
 
  */
-    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    MinuteFile << ("HisParMPL" + ' ' + HisParMPL + '\n');
+    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -2694,7 +2801,8 @@ Input:
 Print #2, "HisParCRS" & " " & HisParCRS
 
  */
-    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    MinuteFile << ("HisParCRS" + ' ' + HisParCRS + '\n');
+    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -2734,7 +2842,8 @@ Input:
 Print #2, "HisParCRL" & " " & HisParCRL
 
  */
-    ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    MinuteFile << ("HisParCRL" + ' ' + HisParCRL + '\n');
+    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
@@ -2774,104 +2883,126 @@ Input:
 Print #2, "SelCatch" & " " & CatchDecimateInit
 
  */
-    comThread[0] = new RackThread();
-    comThread[0]->Run();
-    //MinuteFile.close(); //TODO rest of Monitor_Form_Load()
-
-    return true; //TODO rest of Monitor_Form_Load()
-    }
-
-/* TODO rest of Monitor_Form_Load()
-* 
+    MinuteFile << ("SelCatch" + ' ' + CatchDecimateInit + '\n');
+ 
     PHAHisOrigin = 0;
     MPSHisOrigin = LastUnit + 1;
     MPLHisOrigin = 2 * (LastUnit + 1);
     MOSHisOrigin = 3 * (LastUnit + 1);
     MOLHisOrigin = 4 * (LastUnit + 1);
-    if (RecordSSE)
-        btnRecordSSE.Caption = "Rec SSE";
-    else
-        btnRecordSSE.Caption = "No SSE";
+    //if (RecordSSE)
+        //btnRecordSSE.Caption = "Rec SSE"; //TODO connect to wx
+    //else
+        //btnRecordSSE.Caption = "No SSE"; //TODO connect to wx
     GridLock = false;
     GridCrossLock = false;
-    for (iFor = 0; iFor <= AbsoluteLastUnit; iFor++)
+    //for (iFor = 0; iFor <= AbsoluteLastUnit; iFor++)
+    for (iFor = 0; iFor < AbsoluteLastUnit; iFor++)
         NotSeenYet[iFor] = true;
     SSEString = "1946 027 05 45 06 15";
-    for (iFor = 0; iFor <= 4; iFor++)
+    //for (iFor = 0; iFor <= 4; iFor++)
+    for (iFor = 0; iFor < 4; iFor++)
         RogersRing[iFor] = SSEString;
     RogersRingPointer = 0;
     FillIntegerArray(Days, 11, DaysString);
     FillIntegerArray(DaysLeap, 11, DaysLeapString);
+
     // Set up histograms based on remotes
     for (nUnit = 0; nUnit <= LastUnit; nUnit++)
     {
         ValidCrossUnit[nUnit] = false;
         nHis = PHAHisOrigin + nUnit;
-        MonitorHisTag[nHis] = "PHA" + UnitTag(nUnit);
+        //MonitorHisTag[nHis] = "PHA" + UnitTag(nUnit);
+        MonitorHisTag[nHis] = "PHA" + UnitTag[nUnit];
         MonitorHisDumpInterval[nHis] = MonDumpDefault;
         TempStr = HisParPHA300;
-        if ((FirmVersion(nUnit) == 600))
+        //if ((FirmVersion(nUnit) == 600))
+        if ((FirmVersion[nUnit] == 600))
             TempStr = HisParPHA600;
-        if ((FirmVersion(nUnit) == 700))
+        //if ((FirmVersion(nUnit) == 700))
+        if ((FirmVersion[nUnit] == 700))
             TempStr = HisParPHA700;
-        if ((FirmVersion(nUnit) == 800))
+        //if ((FirmVersion(nUnit) == 800))
+        if ((FirmVersion[nUnit] == 800))
         {
-            ValidCrossUnit[nUnit] = EligibleCrossUnit(nUnit) & (!UnitIsBad(nUnit));
-            if (ValidCrossUnit(nUnit))
+            //ValidCrossUnit[nUnit] = EligibleCrossUnit(nUnit) & (!UnitIsBad(nUnit));
+            ValidCrossUnit[nUnit] = EligibleCrossUnit[nUnit] && (!UnitIsBad[nUnit]);
+            //if (ValidCrossUnit(nUnit))
+            if (ValidCrossUnit[nUnit])
                 nValidCrossUnits = nValidCrossUnits + 1;
             TempStr = HisParPHA800;
         }
-        if ((FirmVersion(nUnit) == 900))
+        //if ((FirmVersion(nUnit) == 900))
+        if ((FirmVersion[nUnit] == 900))
             TempStr = HisParPHA900;
         MakeCSVString(TempStr);
+        //for (iFor = 0; iFor <= MonitorLimLast; iFor++)
         for (iFor = 0; iFor <= MonitorLimLast; iFor++)
         {
-            nComma = Strings.InStr(TempStr, ",");
-            MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            //nComma = Strings.InStr(TempStr, ",");
+            //MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            nComma = TempStr.find(",");
+            MonitorLimit[iFor][nHis] = strtof(TempStr.substr(0, nComma - 1).c_str(), nullptr);
             TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
         }
         nHis = MPSHisOrigin + nUnit;
-        MonitorHisTag[nHis] = "MPS" + UnitTag(nUnit);
+        //MonitorHisTag[nHis] = "MPS" + UnitTag(nUnit);
+        MonitorHisTag[nHis] = "MPS" + UnitTag[nUnit];
         MonitorHisDumpInterval[nHis] = MonDumpDefault;
         TempStr = HisParMPS;
         MakeCSVString(TempStr);
-        for (iFor = 0; iFor <= MonitorLimLast; iFor++)
+        //for (iFor = 0; iFor <= MonitorLimLast; iFor++)
+        for (iFor = 0; iFor < MonitorLimLast; iFor++)
         {
-            nComma = Strings.InStr(TempStr, ",");
-            MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            //nComma = Strings.InStr(TempStr, ",");
+            //MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            nComma = TempStr.find(",");
+            MonitorLimit[iFor][nHis] = strtof(TempStr.substr(0, nComma - 1).c_str(), nullptr);
             TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
         }
         nHis = MPLHisOrigin + nUnit;
-        MonitorHisTag[nHis] = "MPL" + UnitTag(nUnit);
+        //MonitorHisTag[nHis] = "MPL" + UnitTag(nUnit);
+        MonitorHisTag[nHis] = "MPL" + UnitTag[nUnit];
         MonitorHisDumpInterval[nHis] = MonDumpDefault;
         TempStr = HisParMPL;
         MakeCSVString(TempStr);
-        for (iFor = 0; iFor <= MonitorLimLast; iFor++)
+        //for (iFor = 0; iFor <= MonitorLimLast; iFor++)
+        for (iFor = 0; iFor < MonitorLimLast; iFor++)
         {
-            nComma = Strings.InStr(TempStr, ",");
-            MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            //nComma = Strings.InStr(TempStr, ",");
+            //MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            nComma = TempStr.find(",");
+            MonitorLimit[iFor][nHis] = strtof(TempStr.substr(0, nComma - 1).c_str(), nullptr);
             TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
         }
         nHis = MOSHisOrigin + nUnit;
-        MonitorHisTag[nHis] = "MOS" + UnitTag(nUnit);
+        //MonitorHisTag[nHis] = "MOS" + UnitTag(nUnit);
+        MonitorHisTag[nHis] = "MOS" + UnitTag[nUnit];
         MonitorHisDumpInterval[nHis] = MonDumpDefault;
         TempStr = HisParMPS;
         MakeCSVString(TempStr);
-        for (iFor = 0; iFor <= MonitorLimLast; iFor++)
+        //for (iFor = 0; iFor <= MonitorLimLast; iFor++)
+        for (iFor = 0; iFor < MonitorLimLast; iFor++)
         {
-            nComma = Strings.InStr(TempStr, ",");
-            MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            //nComma = Strings.InStr(TempStr, ",");
+            //MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            nComma = TempStr.find(",");
+            MonitorLimit[iFor][nHis] = strtof(TempStr.substr(0, nComma - 1).c_str(), nullptr);
             TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
         }
         nHis = MOLHisOrigin + nUnit;
-        MonitorHisTag[nHis] = "MOL" + UnitTag(nUnit);
+        //MonitorHisTag[nHis] = "MOL" + UnitTag(nUnit);
+        MonitorHisTag[nHis] = "MOL" + UnitTag[nUnit];
         MonitorHisDumpInterval[nHis] = MonDumpDefault;
         TempStr = HisParMPL;
         MakeCSVString(TempStr);
-        for (iFor = 0; iFor <= MonitorLimLast; iFor++)
+        //for (iFor = 0; iFor <= MonitorLimLast; iFor++)
+        for (iFor = 0; iFor < MonitorLimLast; iFor++)
         {
-            nComma = Strings.InStr(TempStr, ",");
-            MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            //nComma = Strings.InStr(TempStr, ",");
+            //MonitorLimit[iFor, nHis] = strtof(Left(TempStr, nComma - 1));
+            nComma = TempStr.find(",");
+            MonitorLimit[iFor][nHis] = strtof(TempStr.substr(0, nComma - 1).c_str(), nullptr);
             TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
         }
     }
@@ -2888,55 +3019,79 @@ Print #2, "SelCatch" & " " & CatchDecimateInit
     {
         TempStr = HisParCRS;
         MakeCSVString(TempStr);
-        for (jFor = 0; jFor <= CrossLimLast; jFor++)
+        //for (jFor = 0; jFor <= CrossLimLast; jFor++)
+        for (jFor = 0; jFor < CrossLimLast; jFor++)
         {
-            nComma = Strings.InStr(TempStr, ",");
-            CrossLimit[jFor, iFor, 0] = strtof(Left(TempStr, nComma - 1));
+            //nComma = Strings.InStr(TempStr, ",");
+            //CrossLimit[jFor, iFor, 0] = strtof(Left(TempStr, nComma - 1));
+            nComma = TempStr.find(",");
+            CrossLimit[jFor][nHis][0] = strtof(TempStr.substr(0, nComma - 1).c_str(), nullptr);
             TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
         }
-        CrossHisDumpInterval[iFor, 0] = MonDumpDefault;
+        //CrossHisDumpInterval[iFor, 0] = MonDumpDefault;
+        CrossHisDumpInterval[iFor][0] = MonDumpDefault;
         TempStr = HisParCRL;
         MakeCSVString(TempStr);
-        for (jFor = 0; jFor <= CrossLimLast; jFor++)
+        //for (jFor = 0; jFor <= CrossLimLast; jFor++)
+        for (jFor = 0; jFor < CrossLimLast; jFor++)
         {
-            nComma = Strings.InStr(TempStr, ",");
-            CrossLimit[jFor, iFor, 1] = strtof(Left(TempStr, nComma - 1));
+            //nComma = Strings.InStr(TempStr, ",");
+            //CrossLimit[jFor, iFor, 1] = strtof(Left(TempStr, nComma - 1));
+            nComma = TempStr.find(",");
+            CrossLimit[jFor][nHis][1] = strtof(TempStr.substr(0, nComma - 1).c_str(), nullptr);
             TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
         }
-        CrossHisDumpInterval[iFor, 1] = MonDumpDefault;
+        //CrossHisDumpInterval[iFor, 1] = MonDumpDefault;
+        CrossHisDumpInterval[iFor][1] = MonDumpDefault;
     }
     // Now set up the column widths for the display grids
     TempStr = "1000,800,800,800,800,800,800,800,800";
     MakeCSVString(TempStr);
-    for (iFor = 0; iFor <= MonitorLimColLast; iFor++)
+    //for (iFor = 0; iFor <= MonitorLimColLast; iFor++)
+    for (iFor = 0; iFor < MonitorLimColLast; iFor++)
     {
-        nComma = Strings.InStr(TempStr, ",");
-        MonitorLimColWidth[iFor] = strtol(Left(TempStr, nComma - 1));
+        //nComma = Strings.InStr(TempStr, ",");
+        //MonitorLimColWidth[iFor] = strtol(Left(TempStr, nComma - 1));
+        nComma = TempStr.find(",");
+        MonitorLimColWidth[iFor] = strtol(TempStr.substr(0, nComma - 1).c_str(), nullptr, 10);
         TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
     }
 
     TempStr = "250,800,1000,800,800,800,800,800,800,800,800";
     MakeCSVString(TempStr);
-    for (iFor = 0; iFor <= MonitorDaColLast; iFor++)
+    //for (iFor = 0; iFor <= MonitorDaColLast; iFor++)
+    for (iFor = 0; iFor < MonitorDaColLast; iFor++)
     {
-        nComma = Strings.InStr(TempStr, ",");
-        MonitorDaColWidth[iFor] = strtol(Left(TempStr, nComma - 1));
+        //nComma = Strings.InStr(TempStr, ",");
+        //MonitorDaColWidth[iFor] = strtol(Left(TempStr, nComma - 1));
+        nComma = TempStr.find(",");
+        MonitorDaColWidth[iFor] = strtol(TempStr.substr(0, nComma - 1).c_str(), nullptr, 10);
         TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
     }
 
     TempStr = "1000,800,800,800,800,800,800,800,800";
     MakeCSVString(TempStr);
-    for (iFor = 0; iFor <= CrossLimColLast; iFor++)
+    //for (iFor = 0; iFor <= CrossLimColLast; iFor++)
+    for (iFor = 0; iFor < CrossLimColLast; iFor++)
     {
-        nComma = Strings.InStr(TempStr, ",");
-        CrossLimColWidth[iFor] = strtol(Left(TempStr, nComma - 1));
+        //nComma = Strings.InStr(TempStr, ",");
+        //CrossLimColWidth[iFor] = strtol(Left(TempStr, nComma - 1));
+        nComma = TempStr.find(",");
+        CrossLimColWidth[iFor] = strtol(TempStr.substr(0, nComma - 1).c_str(), nullptr, 10);
         TempStr = TempStr.substr( nComma + 1, std::string::npos); //replacement for Mid -B
     }
 
-    FillStringArray(MonitorDaColLabel(), "T,Item,Mean,Sigma,Skew,Total,Below,In,Above,LimL,LimH,");
+    //FillStringArray(MonitorDaColLabel(), "T,Item,Mean,Sigma,Skew,Total,Below,In,Above,LimL,LimH,");
+    FillStringArray(MonitorDaColLabel, "T,Item,Mean,Sigma,Skew,Total,Below,In,Above,LimL,LimH,");
     // Read the cross (histogram) matrix
     // This is a (LastUnit+1) by (LastUnit+1) matrix
     // assigning a cross histogram to each ordered unit pair
+        comThread[0] = new RackThread();
+    comThread[0]->Run();
+
+    return true; //TODO rest of Monitor_Form_Load()
+    }
+    /*
     if (CrossMultiplicityEnabled)
     {
         Close(); if (fso.FileExists(CatchFileName))
@@ -4008,7 +4163,10 @@ void LandMonitorApp::SetUpMaster(int MasterNum, std::string SetString) {
         LastUnit += LastRemote + 1;
         for (int iFor = 0; iFor <= LastRemote; iFor++) {
             nUnit = RemoteBaseAddress + iFor;
-            FirmVersion[nUnit] = std::stoi(SetString.substr(iFor * 3 + 1, 2));
+            //FirmVersion[nUnit] = std::stoi(SetString.substr(iFor * 3 + 1, 2));
+            //FirmVersion[nUnit] = std::stoi(SetString.substr(iFor * 3 + 1, 3));
+            std:string tmpstr = SetString.substr(2 + iFor * 4, 3);
+            FirmVersion[nUnit] = std::stoi(tmpstr);
             UnitTag[nUnit] = std::to_string(MasterNum) + (iFor < 10 ? "0" : "") + std::to_string(iFor);
         }
     }
@@ -4035,70 +4193,242 @@ float LandMonitorApp::ChopSng(std::string InString) {
     return result;
 }
 
+//void LandMonitorApp::MakeCSVString(std::string& OpString) {
+//    int nChar;
+//    OpString = OpString + " ";
+//    while (OpString.find(CarRet) != std::string::npos) {
+//        nChar = OpString.find(CarRet);
+//        if (nChar == 0) {
+//            OpString = OpString.substr(1);
+//        }
+//        else if (nChar == OpString.length() - 1) {
+//            OpString = OpString.substr(0, nChar);
+//        }
+//        else {
+//            OpString = OpString.substr(0, nChar) + OpString.substr(nChar + 1);
+//        }
+//    }
+//    while (OpString.find(",") != std::string::npos) {
+//        nChar = OpString.find(",");
+//        if (nChar == 0) {
+//            OpString = " " + OpString.substr(1);
+//        }
+//        else if (nChar == OpString.length() - 1) {
+//            OpString = OpString.substr(0, nChar - 1) + " ";
+//        }
+//        else {
+//            OpString = OpString.substr(0, nChar - 1) + " " + OpString.substr(nChar + 1);
+//        }
+//    }
+//    while (OpString.find(TabChar) != std::string::npos) {
+//        nChar = OpString.find(TabChar);
+//        if (nChar == 0) {
+//            OpString = OpString.substr(1);
+//        }
+//        else if (nChar == OpString.length() - 1) {
+//            OpString = OpString.substr(0, nChar);
+//        }
+//        else {
+//            OpString = OpString.substr(0, nChar - 1) + " " + OpString.substr(nChar + 1);
+//        }
+//    }
+//    while (OpString.find("  ") != std::string::npos) {
+//        nChar = OpString.find("  ");
+//        if (nChar == 0) {
+//            OpString = OpString.substr(2);
+//        }
+//        else if (nChar == OpString.length() - 2) {
+//            OpString = OpString.substr(0, nChar);
+//        }
+//        else {
+//            OpString = OpString.substr(0, nChar) + OpString.substr(nChar + 2);
+//        }
+//    }
+//    while (OpString.substr(0, 1) == " ") {
+//        OpString = OpString.substr(1);
+//    }
+//    while (OpString.find(" ") != std::string::npos) {
+//        nChar = OpString.find(" ");
+//        if (nChar == 0) {
+//            OpString = "," + OpString.substr(1);
+//        }
+//        else if (nChar == OpString.length() - 1) {
+//            OpString = OpString.substr(0, nChar - 1) + ",";
+//        }
+//        else {
+//            OpString = OpString.substr(0, nChar - 1) + "," + OpString.substr(nChar + 1);
+//        }
+//    }
+//}
+
 void LandMonitorApp::MakeCSVString(std::string& OpString) {
-    int nChar;
-    OpString = OpString + " ";
-    while (OpString.find(CarRet) != std::string::npos) {
+    size_t nChar = OpString.find(CarRet);
+    while (nChar != std::string::npos) { //erase all CR
+        OpString.erase(nChar, 1);
         nChar = OpString.find(CarRet);
-        if (nChar == 0) {
-            OpString = OpString.substr(1);
-        }
-        else if (nChar == OpString.length() - 1) {
-            OpString = OpString.substr(0, nChar);
-        }
-        else {
-            OpString = OpString.substr(0, nChar) + OpString.substr(nChar + 1);
-        }
     }
-    while (OpString.find(",") != std::string::npos) {
-        nChar = OpString.find(",");
-        if (nChar == 0) {
-            OpString = " " + OpString.substr(1);
-        }
-        else if (nChar == OpString.length() - 1) {
-            OpString = OpString.substr(0, nChar - 1) + " ";
-        }
-        else {
-            OpString = OpString.substr(0, nChar - 1) + " " + OpString.substr(nChar + 1);
-        }
+    nChar = OpString.find(' ');
+    while (nChar != std::string::npos) { //replace all ' ' with ,
+        OpString[nChar] = ',';
+        nChar = OpString.find(' ');
     }
-    while (OpString.find(TabChar) != std::string::npos) {
+    nChar = OpString.find(TabChar);
+    while (nChar != std::string::npos) { //replace all tabs with ,
+        OpString[nChar] = ',';
         nChar = OpString.find(TabChar);
-        if (nChar == 0) {
-            OpString = OpString.substr(1);
-        }
-        else if (nChar == OpString.length() - 1) {
-            OpString = OpString.substr(0, nChar);
+    }
+    nChar = OpString.find(",,");
+    while (nChar != std::string::npos) { //erase all duplicate ,,
+        OpString.erase(nChar, 1);
+        nChar = OpString.find(",,");
+    }
+    //while (',' == OpString[0]) { //erase leading ,
+    //    OpString.erase(0, 1);
+    //}
+    if (',' != OpString.back()) { //force end ,
+        OpString.push_back(',');
+    }
+}
+
+void LandMonitorApp::FillIntegerArray(int IntegerArray[], int nLast, std::string InputDataString) {
+    int I, nCom;
+    std::string Partial, DataString;
+    DataString = InputDataString;
+    for (I = 0; I <= nLast; I++) {
+        nCom = DataString.find(",");
+        if (nCom != std::string::npos) {
+            Partial = DataString.substr(0, nCom);
+            IntegerArray[I] = std::stoi(Partial);
+            DataString = DataString.substr(nCom + 1);
         }
         else {
-            OpString = OpString.substr(0, nChar - 1) + " " + OpString.substr(nChar + 1);
+            IntegerArray[I] = 0;
         }
     }
-    while (OpString.find("  ") != std::string::npos) {
-        nChar = OpString.find("  ");
-        if (nChar == 0) {
-            OpString = OpString.substr(2);
-        }
-        else if (nChar == OpString.length() - 2) {
-            OpString = OpString.substr(0, nChar);
+}
+
+void LandMonitorApp::FillLongArray(long LongArray[], int nLast, std::string InputDataString) {
+    int I, nCom;
+    std::string Partial, DataString;
+    DataString = InputDataString;
+    for (I = 0; I <= nLast; I++) {
+        nCom = DataString.find(",");
+        if (nCom != std::string::npos) {
+            Partial = DataString.substr(0, nCom);
+            LongArray[I] = std::stol(Partial);
+            DataString = DataString.substr(nCom + 1);
         }
         else {
-            OpString = OpString.substr(0, nChar) + OpString.substr(nChar + 2);
+            LongArray[I] = 0;
         }
     }
-    while (OpString.substr(0, 1) == " ") {
-        OpString = OpString.substr(1);
-    }
-    while (OpString.find(" ") != std::string::npos) {
-        nChar = OpString.find(" ");
-        if (nChar == 0) {
-            OpString = "," + OpString.substr(1);
-        }
-        else if (nChar == OpString.length() - 1) {
-            OpString = OpString.substr(0, nChar - 1) + ",";
+}
+
+void LandMonitorApp::FillSingleArray(float SingleArray[], int nLast, std::string InputDataString) {
+    int I, nCom;
+    std::string Partial, DataString;
+    DataString = InputDataString;
+    for (I = 0; I <= nLast; I++) {
+        nCom = DataString.find(",");
+        if (nCom != std::string::npos) {
+            Partial = DataString.substr(0, nCom);
+            SingleArray[I] = std::stof(Partial);
+            DataString = DataString.substr(nCom + 1);
         }
         else {
-            OpString = OpString.substr(0, nChar - 1) + "," + OpString.substr(nChar + 1);
+            SingleArray[I] = 0.0f;
+        }
+    }
+}
+
+void LandMonitorApp::EnterMonitorHis(float Value, int NumHis, int TypHis) {
+    int Item;
+    int RingLoc;
+    float Scaled = (Value - MonitorLimit[HBase][NumHis]) / MonitorLimit[HScl][NumHis];
+    if (Scaled > MonitorHisLastChan) {
+    //if (Scaled > (MonitorHisLastChan - 1)) {
+        Item = MonitorHisLastChan;
+        //Item = MonitorHisLastChan - 1;
+        //MonitorHis[Item][NumHis][TypHis] += 1;
+        MonitorHis[Item][NumHis][TypHis]++;
+    }
+    else if (Scaled < 0) {
+        MonitorHisErr[NumHis][TypHis] += 1;
+    }
+    else {
+        Item = static_cast<int>(Scaled);
+        MonitorHis[Item][NumHis][TypHis] += 1;
+    }
+    // Also keep track of the history in a ring buffer
+    RingLoc = (MonitorRingLoc[NumHis][TypHis] + 1) % (MonitorRingLast + 1);
+    MonitorRing[RingLoc][NumHis][TypHis] = Value;
+    MonitorRingLoc[NumHis][TypHis] = RingLoc;
+}
+
+void LandMonitorApp::EraseMonitorHis(float Value, int NumHis, int TypHis) {
+    // Same structure as EnterMonitorHis except it removes an earlier
+    // entry by decrementing the histogram. There is no actual memory of
+    // the entry, so exactly the same "Value" must be submitted so that
+    // after scaling the proper channel is decremented. No bin in the histogram
+    // will be decremented below zero. The ring buffer for the "series"
+    // display is not affected.
+    int Item;
+    int RingLoc;
+    float Scaled = (Value - MonitorLimit[HBase][NumHis]) / MonitorLimit[HScl][NumHis];
+    if (Scaled > MonitorHisLastChan) {
+    //if (Scaled > (MonitorHisLastChan - 1)) {
+        Item = MonitorHisLastChan;
+        //Item = MonitorHisLastChan - 1;
+        if (MonitorHis[Item][NumHis][TypHis] > 0) {
+            MonitorHis[Item][NumHis][TypHis] -= 1;
+        }
+    }
+    else if (Scaled < 0) {
+        if (MonitorHisErr[NumHis][TypHis] > 0) {
+            MonitorHisErr[NumHis][TypHis] -= 1;
+        }
+    }
+    else {
+        Item = static_cast<int>(Scaled);
+        if (MonitorHis[Item][NumHis][TypHis] > 0) {
+            MonitorHis[Item][NumHis][TypHis] -= 1;
+        }
+    }
+}
+
+void LandMonitorApp::FillStringArray(std::string StringArray[], std::string InputDataString) {
+    int iFor, nLast, nCom, nBlank;
+    std::string Partial, DataString;
+    nLast = sizeof(StringArray) / sizeof(StringArray[0]) - 1;
+    DataString = InputDataString + ",";
+    for (iFor = 0; iFor <= nLast; iFor++) {
+        StringArray[iFor] = " ";
+    }
+    while (DataString.find("  ") != std::string::npos) {
+        nBlank = DataString.find("  ");
+        DataString = DataString.substr(0, nBlank) + DataString.substr(nBlank + 1);
+    }
+    while (DataString.substr(0, 1) == " ") {
+        DataString = DataString.substr(1);
+    }
+    while (DataString.find(", ") != std::string::npos) {
+        nBlank = DataString.find(", ");
+        DataString = DataString.substr(0, nBlank) + DataString.substr(nBlank + 2);
+    }
+    while (DataString.find(" ,") != std::string::npos) {
+        nBlank = DataString.find(" ,");
+        DataString = DataString.substr(0, nBlank - 1) + DataString.substr(nBlank + 1);
+    }
+    while (DataString.find(" ") != std::string::npos) {
+        nBlank = DataString.find(" ");
+        DataString = DataString.substr(0, nBlank - 1) + "," + DataString.substr(nBlank + 1);
+    }
+    for (iFor = 0; iFor <= nLast; iFor++) {
+        nCom = DataString.find(",");
+        if (nCom != std::string::npos) {
+            Partial = DataString.substr(0, nCom);
+            StringArray[iFor] = Partial;
+            DataString = DataString.substr(nCom + 1);
         }
     }
 }
@@ -4175,6 +4505,1971 @@ void LandMonitorApp::CountNoDelimeter(std::string Candidate) {
     NoDelimiterCount[Kind] += 1.0;
 }
 
+int LandMonitorApp::OffsetOldest(int RemAdr, int LookOffset) {
+    // Returns the pointer to a different event without otherwise disturbing the buffer.
+    // The offset can be positive or negative
+    int nTemp = (RingMod + OldestPointer[RemAdr] + LookOffset) % RingMod;
+    return nTemp;
+}
+
+int LandMonitorApp::OffsetNewest(int RemAdr, int LookOffset) {
+    // Returns a pointer to a different event without otherwise disturbing the buffer.
+    // The offset can be positive or negative
+    int nTemp = (RingMod + NewestPointer[RemAdr] + LookOffset) % RingMod;
+    return nTemp;
+}
+
+std::string LandMonitorApp::HistoryLine(int LocRing, int RemoteUnit) {
+    std::string historyLine = "History:";
+    historyLine += " " + std::to_string(LocRing);
+    historyLine += " " + std::to_string(RingPHA[LocRing][RemoteUnit]);
+    historyLine += " " + std::string(1, RingSelect[LocRing][RemoteUnit] ? 'T' : 'F');
+    historyLine += " " + std::to_string(RingRawTOscLOB[LocRing][RemoteUnit]);
+    historyLine += " " + std::to_string(RingRawTOscHOB[LocRing][RemoteUnit]);
+    historyLine += " " + std::to_string(RingCorTOscHOB[LocRing][RemoteUnit]);
+    historyLine += " " + std::to_string(RingRawFullTime[LocRing][RemoteUnit]);
+    historyLine += " " + std::to_string(RingCorFullTime[LocRing][RemoteUnit]);
+    historyLine += " " + std::to_string(RingInterval[LocRing][RemoteUnit]);
+    historyLine += " " + std::to_string(RingGPSTime[LocRing][RemoteUnit]);
+    historyLine += " " + std::to_string(RingGoodGPSTime[LocRing][RemoteUnit]);
+    historyLine += " " + std::to_string(RingBase[LocRing][RemoteUnit]);
+    historyLine += " " + std::to_string(1000000.0 * RingPeriod[LocRing][RemoteUnit]);
+    return historyLine;
+}
+
+void LandMonitorApp::Process800(std::string TubeRecord800)
+{
+    int iFor;
+    int jFor;
+    //int jPointer;
+    int jPointer = 0; //TODO email Paul about init issue
+    int kFor;
+    int iPoint;
+    int nEntry;
+    int TotalHits;
+    int RecoveredHits;
+    int StatHisBin;
+    int iDiscFire;
+    int jDiscFire;
+    int Adr;
+    int Flg;
+    int CorrectionPointer;
+    double TrialCorFullTime;
+    double PrevTrialCorFullTime;
+    int PrePointer;
+    int LocRing;
+    int ResetType;
+    int nFirstOverflow;
+    long FirstOverflow;
+    long OverflowIncrement;
+    int HitsSinceOverflow;
+    long TempLong;
+    long CurPls;
+    float CurValue;
+    long ThisTime;
+    double SyncFullTime;
+    double HouseStartTime;
+    double HouseEndTime;
+    double PrelimGPSTime;
+    bool EventIsBad;
+    bool BadInRecord;
+    bool SciData;
+    bool DiscFire;
+    string ReportString;
+    string ABSString;
+    bool OrderABSOutput;
+    string HitSpoolRecord;
+    string CommentMessage;
+    string DiagMessage;
+    bool EarlyOverflow;
+    std::string Process800Out;
+    // This is a multiplicity enabled unit with extended event buffers
+    // Science and housekeeping data formats are quite different
+    // Housekeeping format is identical to that of the 600 and 700 series
+    // and is handled by the "DecomShortTube" routine
+    // Event format uses a longer record that is handled by this "DecomLongTube" routine
+    // Housekeeping data alternately may appear "inline"
+    //SequenceListString = SequenceListString + UnitTag(CurrentUnit) + ",";
+    SequenceListString = SequenceListString + UnitTag[CurrentUnit] + ",";
+    //SciData = (Strings.Asc(Mid(TubeRecord800, 2)) & 16) > 0;
+    SciData = (TubeRecord800[2] & 16) > 0;
+//    frmHouse.lblRemStatus1(CurrentUnit).Caption = SciData; //TODO connect to wx with event
+    if (!SciData)
+    {
+        //CommentMessage = "REM " + Format(CurrentUnit);
+        CommentMessage = "REM " + std::to_string(CurrentUnit);
+        CommentMessage = CommentMessage + " flagged housekeeping data in long readout";
+        Exception(CommentMessage);
+        return;
+    }
+
+    //TimingLost(CurrentUnit) = (Strings.Asc(Mid(TubeRecord800, 2)) & 64) > 0;
+    TimingLost[CurrentUnit] = (TubeRecord800[2] & 64) > 0;
+    BadInRecord = false;
+    OrderABSOutput = false;
+    if (SequenceTimeSystem)
+    {
+        //ABSString = "ABS" + UnitTag(CurrentUnit) + ": S " + Format(SequenceSecOfDay);
+        ABSString = "ABS" + UnitTag[CurrentUnit] + ": S " + std::to_string(SequenceSecOfDay);
+    }
+    else
+    {
+        //ABSString = "ABS" + UnitTag(CurrentUnit) + ": G " + Format(SequenceSecOfDay);
+        ABSString = "ABS" + UnitTag[CurrentUnit] + ": G " + std::to_string(SequenceSecOfDay);
+    }
+    // Format as science data
+    // nEntry count includes markers and housekeeping data
+    //nEntry = Strings.Asc(Mid(TubeRecord800, 6));
+    nEntry = TubeRecord800[6];
+    // Total number of triggers, whether they fit into the readout or not
+    //TotalHits = Strings.Asc(Mid(TubeRecord800, 7));
+    TotalHits = TubeRecord800[7];
+    // Keep track of the number of hits in the record
+    RecoveredHits = 0;
+    StatHisBin = TotalHits;
+    if (StatHisBin > RemStatHistLastChannel)
+        StatHisBin = RemStatHistLastChannel;
+    //RemStatHis(0, StatHisBin, CurrentUnit) = RemStatHis(0, StatHisBin, CurrentUnit) + 1;
+    RemStatHis[0][StatHisBin][CurrentUnit]++; 
+    //ABSString = ABSString + " " + Format(nEntry);
+    ABSString += " " + std::to_string(nEntry);
+    //ABSStrin+g + " " + Format(TotalHits);
+    ABSString += " " + std::to_string(TotalHits);
+    if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+    {
+//        frmREMOTE.lblSent.Caption = Format(nEntry); //TODO connect to wx with event
+//        frmREMOTE.lblTotal.Caption = Format(TotalHits); //TODO connect to wx with event
+        for (iFor = 0; iFor <= MaxEntry800 - 1; iFor++)
+        {
+//            frmREMOTE.lblPHA(iFor).Visible = false; //TODO connect to wx with event
+//            frmREMOTE.lblTime1(iFor).Visible = false; //TODO connect to wx with event
+//            frmREMOTE.lblTrueTime(iFor).Visible = false; //TODO connect to wx with event
+        }
+    }
+    // Format errors of various kinds can make the
+    // number of events sent in error, so limit it
+    // to avoid array overflow problems, etc.
+    if (nEntry == 0)
+    {
+        //CommentMessage = "REM " + Format(CurrentUnit);
+        CommentMessage = "REM " + std::to_string(CurrentUnit);
+        CommentMessage = CommentMessage + " has no entries in record";
+        Exception(CommentMessage);
+        return;
+    }
+
+    if (nEntry > MaxEntry800)
+        nEntry = MaxEntry800;
+    //if (PrevTimingLost(CurrentUnit))
+    if (PrevTimingLost[CurrentUnit])
+    {
+        // The previous readout lost some timing information.
+        // It could be a sync marker, in which case nothing can be done.
+        // If it is an overlow marker, then a patch is possible.
+        // Look for the first overflow marker in this readout.
+        nFirstOverflow = -1;
+        for (iFor = 0; iFor <= nEntry - 1; iFor++)
+        {
+            //DiscFire = (Strings.Asc(Mid(TubeRecord800, iFor + 8)) & 128) != 0;
+            DiscFire = (TubeRecord800[iFor + 8] & 128) != 0;
+            //CurPls = (Strings.Asc(Mid(TubeRecord800, iFor + 8)) & 127);
+            CurPls = (TubeRecord800[iFor + 8] & 127);
+            //if (DiscFire & (CurPls == 123))
+            if (DiscFire && (CurPls == 123))
+            {
+                nFirstOverflow = iFor;
+                break;
+            }
+        }
+        if (nFirstOverflow >= 0)
+        {
+            //FirstOverflow = Asc(Mid(TubeRecord800, nFirstOverflow + MaxEntry800 + 8));
+            //FirstOverflow = 256 * FirstOverflow + Asc(Mid(TubeRecord800, nFirstOverflow + 2 * MaxEntry800 + 8));
+            //OverflowIncrement = FirstOverflow - LatestTOsc(CurrentUnit);
+            FirstOverflow = TubeRecord800[nFirstOverflow + MaxEntry800 + 8];
+            FirstOverflow <<= 8;
+            FirstOverflow += TubeRecord800[nFirstOverflow + 2 * MaxEntry800 + 8];
+            OverflowIncrement = FirstOverflow - LatestTOsc[CurrentUnit];
+            if (OverflowIncrement == 1)
+            {
+            }
+            //else if (LatestTOsc(CurrentUnit) == -1)
+            else if (LatestTOsc[CurrentUnit] == -1)
+            {
+                // This is a timing reset, so just make things go smoothly
+                //LatestTOsc(CurrentUnit) = (Mod16Bit + FirstOverflow - 1) % Mod16Bit;
+                LatestTOsc[CurrentUnit] = (Mod16Bit + FirstOverflow - 1) % Mod16Bit;
+            }
+            //else if ((OverflowIncrement > 0) & (OverflowIncrement < 10))
+            else if ((OverflowIncrement > 0) && (OverflowIncrement < 10))
+            {
+                // Try to patch a small gap
+//                if (chkMinDiagnostics.Value == 0) 
+                if (chkMinDiagnostics_Value == 0) //TODO update from wx
+                {
+                    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+       at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+       at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+       at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+       at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+       at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+       at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+       at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+       at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+       at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+       at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+       at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+       at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+       at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+       at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+       at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+       at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+       at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+       at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+       at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+       at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+       at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+       at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+       at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+       at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+       at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+       at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+       at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+       at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+       at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+       at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+       at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+       at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+       at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+       at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+    Input:
+    Print #2, "Patch Overflow A " & Format$(CurrentUnit) & " " & Format$(FirstOverflow) & " " & Format$(LatestTOsc(CurrentUnit))
+
+     */
+                    Process800Out += "Patch Overflow A " + std::to_string(CurrentUnit) + " " + std::to_string(FirstOverflow) + " " + std::to_string(LatestTOsc[CurrentUnit]) + '\n';
+                }
+                //LatestTOsc(CurrentUnit) = LatestTOsc(CurrentUnit) + OverflowIncrement - 1;
+                LatestTOsc[CurrentUnit] += OverflowIncrement - 1;
+            }
+            else if (OverflowIncrement < 0)
+            {
+                if (((OverflowIncrement + Mod16Bit) % Mod16Bit) == 1)
+                {
+                }
+                else if (((OverflowIncrement + Mod16Bit) % Mod16Bit) < 10)
+                {
+                    // Try to patch a small gap
+//                    if (chkMinDiagnostics.Value == 0) 
+                    if (chkMinDiagnostics_Value == 0) //TODO update from wx
+                    {
+                   
+                        /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "Patch Overflow B " & Format$(CurrentUnit) & " " & Format$(FirstOverflow) & " " & Format$(LatestTOsc(CurrentUnit))
+
+ */
+                        Process800Out += "Patch Overflow B " + std::to_string(CurrentUnit) + " " + std::to_string(FirstOverflow) + " " + std::to_string(LatestTOsc[CurrentUnit]) + '\n';
+                    }
+                    //LatestTOsc(CurrentUnit) = (Mod16Bit + LatestTOsc(CurrentUnit) + OverflowIncrement - 1) % Mod16Bit;
+                    //TOscCycle(CurrentUnit) = TOscCycle(CurrentUnit) + 1;
+                    LatestTOsc[CurrentUnit] = (Mod16Bit + LatestTOsc[CurrentUnit] + OverflowIncrement - 1) % Mod16Bit;
+                    TOscCycle[CurrentUnit]++;
+                }
+                else
+                {
+                    //frmClocker.MarkerSyncLoss(CurrentUnit); //TODO convert frmClocker
+                }
+            }
+        }
+        else
+        {
+        }
+    }
+    // "Pulse Height" Data
+    for (iFor = 0; iFor <= nEntry - 1; iFor++)
+    {
+        //DiscFire = (Strings.Asc(Mid(TubeRecord800, iFor + 8)) & 128) != 0;
+        DiscFire = (TubeRecord800[iFor + 8] & 128) != 0;
+        if (DiscFire)
+        {
+            iDiscFire = 1;
+            //ABSString = ABSString + " +";
+            ABSString += " +";
+        }
+        else
+        {
+            iDiscFire = 0;
+            //ABSString = ABSString + " -";
+            ABSString = " -";
+        }
+        //        CurPls = (Strings.Asc(Mid(TubeRecord800, iFor + 8)) & 127);
+        CurPls = (TubeRecord800[iFor + 8] & 127);
+        //        ThisTime = Asc(Mid(TubeRecord800, iFor + MaxEntry800 + 8));
+        ThisTime = TubeRecord800[iFor + MaxEntry800 + 8];
+        ThisTime = 256 * ThisTime + TubeRecord800[iFor + 2 * MaxEntry800 + 8];
+        //ABSString = ABSString + Format(CurPls) + " " + Format(ThisTime);
+        ABSString += std::to_string(CurPls) + " " + std::to_string(ThisTime);
+        //if (DiscFire & (CurPls == 123))
+        if (DiscFire && (CurPls == 123))
+        {
+            // This is a timer overflow marker
+//            OverflowIncrement = ThisTime - LatestTOsc(CurrentUnit);
+            OverflowIncrement = ThisTime - LatestTOsc[CurrentUnit];
+            if (OverflowIncrement == 1)
+            {
+                // There is no problem
+//                LatestTOsc(CurrentUnit) = ThisTime;
+                LatestTOsc[CurrentUnit] = ThisTime;
+            }
+            //            else if (LatestTOsc(CurrentUnit) == -1)
+            else if (LatestTOsc[CurrentUnit] == -1)
+            {
+                // This is a timing reset, so just make things go smoothly
+//                LatestTOsc(CurrentUnit) = (Mod16Bit + ThisTime - 1) % Mod16Bit;
+                LatestTOsc[CurrentUnit] = (Mod16Bit + ThisTime - 1) % Mod16Bit;
+            }
+            else if (OverflowIncrement == 0)
+            {
+                //                if (chkMinDiagnostics.Value == 0) 
+                if (chkMinDiagnostics_Value == 0) //TODO update from wx
+                {
+                    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "Overflow Increment Zero " & Format$(CurrentUnit) & " " & Format$(ThisTime) & " " & Format$(LatestTOsc(CurrentUnit))
+
+ */
+                    Process800Out += "Overflow Increment Zero " + std::to_string(CurrentUnit) + " " + std::to_string(ThisTime) + " " + std::to_string(LatestTOsc[CurrentUnit]) + '\n';
+                }
+                //                LatestTOsc(CurrentUnit) = ThisTime;
+                LatestTOsc[CurrentUnit] = ThisTime;
+            }
+            else if (OverflowIncrement > 1)
+            {
+                //                if (chkMinDiagnostics.Value == 0) 
+                if (chkMinDiagnostics_Value == 0) //TODO update from wx
+                {
+                    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "Overflow Increment Gap A " & Format$(CurrentUnit) & " " & Format$(ThisTime) & " " & Format$(LatestTOsc(CurrentUnit))
+
+ */
+                    Process800Out += "Overflow Increment Gap A " + std::to_string(CurrentUnit) + " " + std::to_string(ThisTime) + " " + std::to_string(LatestTOsc[CurrentUnit]) + '\n';
+                }
+                nOverflowGapA++;
+                //                LatestTOsc(CurrentUnit) = ThisTime;
+                LatestTOsc[CurrentUnit] = ThisTime;
+            }
+            else if (OverflowIncrement < 0)
+            {
+                //                TOscCycle(CurrentUnit) = TOscCycle(CurrentUnit) + 1;
+                TOscCycle[CurrentUnit]++;
+                if (((OverflowIncrement + Mod16Bit) % Mod16Bit) == 1)
+                {
+                    // There is no problem
+//                    LatestTOsc(CurrentUnit) = ThisTime;
+                    LatestTOsc[CurrentUnit] = ThisTime;
+                }
+                else if (((OverflowIncrement + Mod16Bit) % Mod16Bit) > 1)
+                {
+                    //                    if (chkMinDiagnostics.Value == 0) 
+                    if (chkMinDiagnostics_Value == 0) //TODO update from wx
+                    {
+                        /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "Overflow Increment Gap B " & Format$(CurrentUnit) & " " & Format$(ThisTime) & " " & Format$(LatestTOsc(CurrentUnit))
+
+ */
+                        Process800Out += "Overflow Increment Gap B " + std::to_string(CurrentUnit) + " " + std::to_string(ThisTime) + " " + std::to_string(LatestTOsc[CurrentUnit]) + '\n';
+                    }
+                    //                    LatestTOsc(CurrentUnit) = ThisTime;
+                    LatestTOsc[CurrentUnit] = ThisTime;
+                }
+            }
+            //            frmHouse.lblRemStatus2(CurrentUnit).Caption = Format(ThisTime); //TODO connect to wx with event
+            //            frmHouse.lblRemStatus2(CurrentUnit).BackColor = ColorPink; //TODO connect to wx with event
+                        //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+            if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+            {
+                //                frmREMOTE.lblPHA(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblPHA(iFor).Caption = Strings.Format(CurPls); //TODO connect to wx with event
+                //                frmREMOTE.lblPHA(iFor).BackColor = ColorPink; //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).Caption = Strings.Format(ThisTime); //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).BackColor = ColorPink; //TODO connect to wx with event
+            }
+        }
+        //else if (DiscFire & (CurPls == 125))
+        else if (DiscFire && (CurPls == 125))
+        {
+            // This is an embedded housekeeping start
+            // The housekeeping data have no identifiers or delimiters
+            // The format is positional within the block of bytes
+            // Remotes ensure that a block is completely contained within
+            // one transmission.
+            // Entries with a pulseheight of 125+ and 124+ delimit a 24 byte housekeeping block
+            // The housekeeping bytes occupy positions in the buffer as noted here:
+            // 
+            // "PHA"     TimeHOB  TimeLOB
+            // 125       OnTimeH  OnTimeL    ;The time is when the interrupts go off
+            // Version   ADC1H    ADC1L
+            // Revision  ADC2H    ADC2L
+            // ResetCode ADC3H    ADC3L
+            // TovrCount ADC4H    ADC4L
+            // Temp2H    Temp1H   Temp1L
+            // Temp3L    Temp2L   Temp3H
+            // 124       OffTimeH OffTimeL   ;The time is when the interrupts come back on
+//            HouseStartTime = System.Convert.ToDouble(65536 * TOscCycle(CurrentUnit) + ThisTime);
+            HouseStartTime = 65536 * (double)TOscCycle[CurrentUnit] + (double)ThisTime;
+            //            frmHouse.lblHODB(CurrentUnit).Caption = Format(ThisTime); //TODO connect to wx with event
+            //            frmHouse.lblHODB(CurrentUnit).BackColor = ColorGreen; //TODO connect to wx with event
+                        //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+            if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+            {
+                //                frmREMOTE.lblPHA(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblPHA(iFor).Caption = Strings.Format(CurPls); //TODO connect to wx with event
+                //                frmREMOTE.lblPHA(iFor).BackColor = ColorGreen; //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).Caption = Strings.Format(ThisTime); //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).BackColor = ColorGreen; //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).Caption = Strings.Format(HouseStartTime); //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).BackColor = ColorGreen; //TODO connect to wx with event
+            }
+            iFor = iFor + 1;
+            //            frmHouse.lblVersion(CurrentUnit).Caption = Strings.Asc(Mid(TubeRecord800, iFor + 8)); //TODO connect to wx with event
+                        // Voltages
+            for (jFor = 0; jFor <= 3; jFor++)
+            {
+                //                TempLong = Asc(Mid(TubeRecord800, iFor + jFor + MaxEntry800 + 8));
+                TempLong = TubeRecord800[iFor + jFor + MaxEntry800 + 8];
+                //                TempLong = (4 * TempLong) + (Asc(Mid(TubeRecord800, iFor + jFor + 2 * MaxEntry800 + 8)) / 64);
+                TempLong = (4 * TempLong) + (TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 8] / 64);
+                //                House(jFor, CurrentUnit) = TempLong;
+                House[jFor][CurrentUnit] = TempLong;
+                //                Adr = Asc(Mid(TubeRecord800, iFor + jFor + 2 * MaxEntry800 + 8)) & 7;
+                Adr = TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 8] & 7;
+                //                Flg = Asc(Mid(TubeRecord800, iFor + jFor + 2 * MaxEntry800 + 8)) & 8;
+                Flg = TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 8] & 8;
+                if (Adr != (jFor + 1))
+                {
+                    //House(jFor, CurrentUnit) = -House(jFor, CurrentUnit);
+                    House[jFor][CurrentUnit] *= -1;
+                }
+            }
+            iFor = iFor + 1;
+            //            frmHouse.lblRevision(CurrentUnit).Caption = Strings.Asc(Mid(TubeRecord800, iFor + 8)); //TODO connect to wx with event
+            iFor = iFor + 1;
+            //            ResetType = Strings.Asc(Mid(TubeRecord800, iFor + 8));
+            ResetType = TubeRecord800[iFor + 8];
+            //            frmHouse.lblResetType(CurrentUnit).Caption = ResetType; //TODO connect to wx with event
+            if (ResetType > 0)
+            {
+                //Exception("REM " + Format(CurrentUnit) + " Reset Code " + Format(ResetType));
+                Exception("REM " + std::to_string(CurrentUnit) + " Reset Code " + std::to_string(ResetType));
+            }
+            iFor = iFor + 1;
+            iFor = iFor + 1;
+            // Temperature Sensors
+            // T1
+//            if ((Asc(Mid(TubeRecord800, iFor + 2 * MaxEntry800 + 8)) & 16) != 0)
+            if ((TubeRecord800[iFor + 2 * MaxEntry800 + 8] & 16) != 0)
+            {
+                //                House(4, CurrentUnit) = -((Asc(Mid(TubeRecord800, iFor + MaxEntry800 + 8)) ^ 255) + 1);
+//                House(4, CurrentUnit) = -((TubeRecord800[iFor + MaxEntry800 + 8] ^ 255) + 1);
+                House[4][CurrentUnit] = -((TubeRecord800[iFor + MaxEntry800 + 8] ^ 255) + 1);
+            }
+            else
+            {
+                //                House(4, CurrentUnit) = Asc(Mid(TubeRecord800, iFor + MaxEntry800 + 8));
+//                House(4, CurrentUnit) = TubeRecord800[iFor + MaxEntry800 + 8];
+                House[4][CurrentUnit] = TubeRecord800[iFor + MaxEntry800 + 8];
+                // T2
+            }
+            //            if ((Asc(Mid(TubeRecord800, iFor + MaxEntry800 + 9)) & 16) != 0)
+            if ((TubeRecord800[iFor + MaxEntry800 + 9] & 16) != 0)
+            {
+                //                House(5, CurrentUnit) = -((Strings.Asc(Mid(TubeRecord800, iFor + 8)) ^ 255) + 1);
+//                House(5, CurrentUnit) = -((TubeRecord800[iFor + 8] ^ 255) + 1);
+                House[5][CurrentUnit] = -((TubeRecord800[iFor + 8] ^ 255) + 1);
+            }
+            else
+            {
+                //                House(5, CurrentUnit) = Strings.Asc(Mid(TubeRecord800, iFor + 8));
+//                House(5, CurrentUnit) = TubeRecord800[iFor + 8];
+                House[5][CurrentUnit] = TubeRecord800[iFor + 8];
+            }
+            // T3
+//            if ((Strings.Asc(Mid(TubeRecord800, iFor + 9)) & 16) != 0)
+            if ((TubeRecord800[iFor + 9] & 16) != 0)
+            {
+                //                House(6, CurrentUnit) = -((TubeRecord800[iFor + 2 * MaxEntry800 + 9] ^ 255) + 1);
+                House[6][CurrentUnit] = -((TubeRecord800[iFor + 2 * MaxEntry800 + 9] ^ 255) + 1);
+            }
+            else
+            {
+                //                House(6, CurrentUnit) = TubeRecord800[iFor + 2 * MaxEntry800 + 9];
+                House[6][CurrentUnit] = TubeRecord800[iFor + 2 * MaxEntry800 + 9];
+            }
+            iFor = iFor + 1;
+            //RemoteVoltages(CurrentUnit); //TODO RemoteVoltages
+//            lblT1(CurrentUnit).Caption = Format((0.5 * House(4, CurrentUnit)), "###0.0"); //TODO connect to wx with event
+//            lblT2(CurrentUnit).Caption = Format((0.5 * House(5, CurrentUnit)), "###0.0"); //TODO connect to wx with event
+//            lblT3(CurrentUnit).Caption = Format((0.5 * House(6, CurrentUnit)), "###0.0"); //TODO connect to wx with event
+        }
+        //else if (DiscFire & (CurPls == 124))
+        else if (DiscFire && (CurPls == 124))
+        {
+            // This is a housekeeping stop marker
+            //HouseEndTime = System.Convert.ToDouble(65536 * TOscCycle(CurrentUnit) + ThisTime);
+//            HouseEndTime = (double)(65536.0 * (double)TOscCycle(CurrentUnit) + (double)ThisTime);
+            HouseEndTime = (double)(65536.0 * (double)TOscCycle[CurrentUnit] + (double)ThisTime);
+            //            frmHouse.lblLODB(CurrentUnit).Caption = Format(HouseEndTime - HouseStartTime); //TODO connect to wx with event
+            //            frmHouse.lblLODB(CurrentUnit).BackColor = ColorBlue; //TODO connect to wx with event
+                        //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+            if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+            {
+                //                frmREMOTE.lblPHA(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblPHA(iFor).Caption = Strings.Format(CurPls); //TODO connect to wx with event
+                //                frmREMOTE.lblPHA(iFor).BackColor = ColorBlue; //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).Caption = Strings.Format(ThisTime); //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).BackColor = ColorBlue; //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).Caption = Strings.Format(HouseEndTime); //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).BackColor = ColorBlue; //TODO connect to wx with event
+            }
+        }
+        //else if (DiscFire & (CurPls == 126))
+        else if (DiscFire && (CurPls == 126))
+        {
+            // This is a time sync
+            //SyncFullTime = 65536#  * System.Convert.ToDouble(65536 * TOscCycle(CurrentUnit) + LatestTOsc(CurrentUnit)) + System.Convert.ToDouble(ThisTime);
+            SyncFullTime = 65536.0 * (double)(65536.0 * (double)TOscCycle[CurrentUnit] + (double)LatestTOsc[CurrentUnit]) + (double)(ThisTime);
+            //            TimeMarkerRing(GPSRingPointer, CurrentUnit) = SyncFullTime;
+            TimeMarkerRing[GPSRingPointer][CurrentUnit] = SyncFullTime;
+            //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+            if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+            {
+                //                frmREMOTE.lblPHA(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblPHA(iFor).Caption = Strings.Format(CurPls); //TODO connect to wx with event
+                //                frmREMOTE.lblPHA(iFor).BackColor = ColorRed; //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).Caption = Strings.Format(ThisTime); //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).BackColor = ColorRed; //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).Caption = Strings.Format(SyncFullTime); //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).BackColor = ColorRed; //TODO connect to wx with event
+            }
+        }
+        else
+        {
+            // This is an actual event
+            RecoveredHits = RecoveredHits + 1;
+            EventIsBad = false;
+            //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+            if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+            {
+                //                frmREMOTE.lblPHA(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblPHA(iFor).Caption = Strings.Format(CurPls); //TODO connect to wx with event
+                if (!DiscFire)
+                {
+                    //                    frmREMOTE.lblPHA(iFor).BackColor = ColorYellow; //TODO connect to wx with event
+                    //                    frmREMOTE.lblTime1(iFor).BackColor = ColorYellow; //TODO connect to wx with event
+                    //                    frmREMOTE.lblTrueTime(iFor).BackColor = ColorYellow; //TODO connect to wx with event
+                }
+                else
+                {
+                    //                    frmREMOTE.lblPHA(iFor).BackColor = ColorWhite; //TODO connect to wx with event
+                    //                    frmREMOTE.lblTime1(iFor).BackColor = ColorWhite; //TODO connect to wx with event
+                    //                    frmREMOTE.lblTrueTime(iFor).BackColor = ColorWhite; //TODO connect to wx with event
+                }
+            }
+            //CurValue = System.Convert.ToSingle(CurPls);
+            CurValue = (float)(CurPls);
+            EnterMonitorHis(CurValue, PHAHisOrigin + CurrentUnit, iDiscFire);
+            //if (chkEmulate616.Value == 1)
+            if (chkEmulate616_Value == 1)
+            {
+                // Emulate the REM616 timing distributions
+                //CurValue = System.Convert.ToSingle((Mod16Bit + ThisTime - PreviousThisTime(CurrentUnit)) % Mod16Bit);
+                CurValue = (Mod16Bit + ThisTime - PreviousThisTime[CurrentUnit]) % Mod16Bit;
+                EnterMonitorHis(CurValue, MOSHisOrigin + CurrentUnit, iDiscFire);
+                EnterMonitorHis(CurValue, MOLHisOrigin + CurrentUnit, iDiscFire);
+                //PreviousThisTime(CurrentUnit) = ThisTime;
+                PreviousThisTime[CurrentUnit] = ThisTime;
+            }
+            // Accumulate "Window" statistics
+//            if (CurPls < MonitorLimit(WMin, CurrentUnit))
+            if (CurPls < MonitorLimit[WMin][CurrentUnit])
+            {
+                //Below(CurrentUnit) = Below(CurrentUnit) + 1;
+                Below[CurrentUnit]++;
+            }
+            //            else if (CurPls > MonitorLimit(WMax, CurrentUnit))
+            else if (CurPls > MonitorLimit[WMax][CurrentUnit])
+            {
+                //Above(CurrentUnit) = Above(CurrentUnit) + 1;
+                Above[CurrentUnit]++;
+            }
+            else
+            {
+                //InArray(CurrentUnit) = InArray(CurrentUnit) + 1;
+                InArray[CurrentUnit]++;
+            }
+            // Enter the event in the ring buffers
+            // Keep track of where the hits end up
+//            HitTrack(0, CurrentUnit) = HitTrack(0, CurrentUnit) + 1;
+            HitTrack[0][CurrentUnit]++;
+            //IncrementNewest(CurrentUnit); //TODO IncrementNewest
+            //RingPHA(NewestPointer(CurrentUnit), CurrentUnit) = CurPls;
+            //RingSelect(NewestPointer(CurrentUnit), CurrentUnit) = DiscFire;
+            //RingRawTOscLOB(NewestPointer(CurrentUnit), CurrentUnit) = ThisTime;
+            //RingRawTOscHOB(NewestPointer(CurrentUnit), CurrentUnit) = 65536 * TOscCycle(CurrentUnit) + LatestTOsc(CurrentUnit);
+            //RingGoodGPSTime(NewestPointer(CurrentUnit), CurrentUnit) = LastGoodGPSTime(CurrentUnit);
+            //RingBase(NewestPointer(CurrentUnit), CurrentUnit) = MarkerBase(CurrentUnit);
+            //RingPeriod(NewestPointer(CurrentUnit), CurrentUnit) = MarkerPeriod(CurrentUnit);
+            RingPHA[NewestPointer[CurrentUnit]][CurrentUnit] = CurPls;
+            RingSelect[NewestPointer[CurrentUnit]][CurrentUnit] = DiscFire;
+            RingRawTOscLOB[NewestPointer[CurrentUnit]][CurrentUnit] = ThisTime;
+            RingRawTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] = 65536 * TOscCycle[CurrentUnit] + LatestTOsc[CurrentUnit];
+            RingGoodGPSTime[NewestPointer[CurrentUnit]][CurrentUnit] = LastGoodGPSTime[CurrentUnit];
+            RingBase[NewestPointer[CurrentUnit]][CurrentUnit] = MarkerBase[CurrentUnit];
+            RingPeriod[NewestPointer[CurrentUnit]][CurrentUnit] = MarkerPeriod[CurrentUnit];
+            //if (RingRawTOscHOB(NewestPointer(CurrentUnit), CurrentUnit) > RingRawTOscHOB(OffsetNewest(CurrentUnit, -1), CurrentUnit))
+            //    LatestOverflowPointer(CurrentUnit) = NewestPointer(CurrentUnit);
+            //RingRawFullTime(NewestPointer(CurrentUnit), CurrentUnit) = 65536#  * System.Convert.ToDouble(RingRawTOscHOB(NewestPointer(CurrentUnit), CurrentUnit)) + System.Convert.ToDouble(ThisTime);
+            //if (LateOverflow(CurrentUnit))
+            //{
+            //    // First see if the overflow has "come in"
+            //    if (RingRawTOscHOB(NewestPointer(CurrentUnit), CurrentUnit) == RingRawTOscHOB(OffsetNewest(CurrentUnit, -1), CurrentUnit))
+            //        // Nothing has happened, so keep incrementing
+            //        RingCorTOscHOB(NewestPointer(CurrentUnit), CurrentUnit) = RingRawTOscHOB(NewestPointer(CurrentUnit), CurrentUnit) + 1;
+            //    else
+            //    {
+            //        // Do not increment and remove the late overflow flag
+            //        RingCorTOscHOB(NewestPointer(CurrentUnit), CurrentUnit) = RingRawTOscHOB(NewestPointer(CurrentUnit), CurrentUnit);
+            //        LateOverflow(CurrentUnit) = false;
+            //    }
+            //}
+            //else
+            //    RingCorTOscHOB(NewestPointer(CurrentUnit), CurrentUnit) = RingRawTOscHOB(NewestPointer(CurrentUnit), CurrentUnit);
+            if (RingRawTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] > RingRawTOscHOB[OffsetNewest(CurrentUnit, -1)][CurrentUnit])
+            {
+                LatestOverflowPointer[CurrentUnit] = NewestPointer[CurrentUnit];
+            }
+            RingRawFullTime[NewestPointer[CurrentUnit]][CurrentUnit] = 65536.0 * (double)(RingRawTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit]) + (double)(ThisTime);
+            if (LateOverflow[CurrentUnit])
+            {
+                // First see if the overflow has "come in"
+                if (RingRawTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] == RingRawTOscHOB[OffsetNewest(CurrentUnit, -1)][CurrentUnit])
+                {
+                    // Nothing has happened, so keep incrementing
+                    RingCorTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] = RingRawTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] + 1;
+                }
+                else
+                {
+                    // Do not increment and remove the late overflow flag
+                    RingCorTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] = RingRawTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit];
+                    LateOverflow[CurrentUnit] = false;
+                }
+            }
+            else
+            {
+                RingCorTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] = RingRawTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit];
+            }
+            RingCorFullTime[NewestPointer[CurrentUnit]][CurrentUnit] = 65536.0 * (double)(RingCorTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit]) + (double)RingRawTOscLOB[NewestPointer[CurrentUnit]][CurrentUnit];
+            RingGPSTime[NewestPointer[CurrentUnit]][CurrentUnit] = -1;
+            // Other than a hardware or data link problem these oscillator counts must be monotonic
+            if (RingRawFullTime[NewestPointer[CurrentUnit]][CurrentUnit] < RingRawFullTime[OffsetNewest(CurrentUnit, -1)][CurrentUnit])
+            {
+                // Deal with step back in LOB time counter
+                // There are only two cases logically possible, an early overflow or a late overflow.
+                // For an early overflow, the information for the hit is
+                // correct, but some number of earlier hit times were
+                // incorrect. These would have had monotonically increasing
+                // times.
+                // For a late overflow, the information for the his is
+                // incorrect, and some number of later hist may also have
+                // incorrect hit times
+                // To determine which case, based only on information available
+                // now, see if the preceeding hit times ALL remain monotonic
+                // under the assumption that the latest oscillator timeer
+                // was premature. The location of the latest overflow was noted.
+//                HitsSinceOverflow = (RingMod + NewestPointer(CurrentUnit) - LatestOverflowPointer(CurrentUnit)) % RingMod;
+//                PrePointer = (RingMod + LatestOverflowPointer(CurrentUnit) - 1) % RingMod;
+//                PrevTrialCorFullTime = 65536#  * System.Convert.ToDouble(RingRawTOscHOB(PrePointer, CurrentUnit)) + System.Convert.ToDouble(RingRawTOscLOB(PrePointer, CurrentUnit));
+//                DiagMessage = "Early/Late Decision";
+//                DiagMessage = DiagMessage + " " + Format(CurrentUnit);
+//                DiagMessage = DiagMessage + " " + Format(HitsSinceOverflow);
+//                DiagMessage = DiagMessage + " " + Format(LatestOverflowPointer(CurrentUnit));
+//                DiagMessage = DiagMessage + " " + Format(RingCorFullTime(LatestOverflowPointer(CurrentUnit), CurrentUnit));
+//                DiagMessage = DiagMessage + " " + Format(PrePointer);
+//                DiagMessage = DiagMessage + " " + Format(PrevTrialCorFullTime);
+                HitsSinceOverflow = (RingMod + NewestPointer[CurrentUnit] - LatestOverflowPointer[CurrentUnit]) % RingMod;
+                PrePointer = (RingMod + LatestOverflowPointer[CurrentUnit] - 1) % RingMod;
+                PrevTrialCorFullTime = 65536.0 * (double)(RingRawTOscHOB[PrePointer][CurrentUnit]) + (double)(RingRawTOscLOB[PrePointer][CurrentUnit]);
+                DiagMessage = "Early/Late Decision";
+                DiagMessage += " " + std::to_string(CurrentUnit);
+                DiagMessage += " " + std::to_string(HitsSinceOverflow);
+                DiagMessage += " " + std::to_string(LatestOverflowPointer[CurrentUnit]);
+                DiagMessage += " " + std::to_string(RingCorFullTime[LatestOverflowPointer[CurrentUnit]][CurrentUnit]);
+                DiagMessage += " " + std::to_string(PrePointer);
+                DiagMessage += " " + std::to_string(PrevTrialCorFullTime);
+                // Print #2, DiagMessage
+                EarlyOverflow = true;
+                // Go through all the hits beginning with the last overflow
+                for (jFor = 0; jFor <= HitsSinceOverflow - 1; jFor++)
+                {
+                    jPointer = (PrePointer + 1 + jFor) % RingMod;
+                    //                    TrialCorFullTime = 65536#  * System.Convert.ToDouble(RingRawTOscHOB(jPointer, CurrentUnit) - 1) + System.Convert.ToDouble(RingRawTOscLOB(jPointer, CurrentUnit));
+                    TrialCorFullTime = 65536.0 * (double)(RingRawTOscHOB[jPointer][CurrentUnit] - 1) + (double)(RingRawTOscLOB[jPointer][CurrentUnit]);
+                    if (TrialCorFullTime > PrevTrialCorFullTime)
+                        // This hit is OK, move on to the next one
+                    {
+                        PrevTrialCorFullTime = TrialCorFullTime;
+                    }
+                    else
+                    {
+                        // One strike and you are out
+                        EarlyOverflow = false;
+                        break;
+                    }
+                }
+                if (EarlyOverflow)
+                {
+                    // Still one more test
+                    //if (PrevTrialCorFullTime > RingCorFullTime(NewestPointer(CurrentUnit), CurrentUnit))
+                    if (PrevTrialCorFullTime > RingCorFullTime[NewestPointer[CurrentUnit]][CurrentUnit])
+                        // Test fails
+                    {
+                        EarlyOverflow = false;
+                    }
+                }
+                // 
+                // Here the decision has been made, so just act on it
+                if (EarlyOverflow)
+                {
+                    //EarlyOverCount(CurrentUnit) = EarlyOverCount(CurrentUnit) + 1;
+                    EarlyOverCount[CurrentUnit]++;
+                    // CommentMessage = CommentMessage & " " & "Early Overflow " & Format$(NewestPointer(CurrentUnit)) & " " & Format$(CurrentUnit)
+                    // The GPS times are also wrong
+//                    LastGoodGPSTime(CurrentUnit) = RingGPSTime(PrePointer, CurrentUnit);
+                    LastGoodGPSTime[CurrentUnit] = RingGPSTime[PrePointer][CurrentUnit];
+                    // Print #2, "  " & Format$(LatestOverflowPointer(CurrentUnit)) & " " & Format$(RingRawFullTime(LatestOverflowPointer(CurrentUnit), CurrentUnit))
+                    for (jFor = 0; jFor <= HitsSinceOverflow - 1; jFor++)
+                    {
+                        jPointer = (PrePointer + 1 + jFor) % RingMod;
+                        //                        RingCorTOscHOB(jPointer, CurrentUnit) = RingRawTOscHOB(jPointer, CurrentUnit) - 1;
+                        RingCorTOscHOB[jPointer][CurrentUnit] = RingRawTOscHOB[jPointer][CurrentUnit] - 1;
+                        //                        RingCorFullTime(jPointer, CurrentUnit) = 65536#  * System.Convert.ToDouble(RingCorTOscHOB(jPointer, CurrentUnit)) + RingRawTOscLOB(jPointer, CurrentUnit);
+                        RingCorFullTime[jPointer][CurrentUnit] = 65536.0 * (double)(RingCorTOscHOB[jPointer][CurrentUnit]) + RingRawTOscLOB[jPointer][CurrentUnit];
+                        // Unselected/Selected status does not change
+                        jDiscFire = 0;
+                        //                        if (RingSelect(jPointer, CurrentUnit))
+                        if (RingSelect[jPointer][CurrentUnit])
+                            jDiscFire = 1;
+                        // Remove possibly erroneous timing histogram entry
+//                        CurValue = System.Convert.ToSingle(RingInterval(jPointer, CurrentUnit));
+                        CurValue = (float)(RingInterval[jPointer][CurrentUnit]);
+                        EraseMonitorHis(CurValue, MPSHisOrigin + CurrentUnit, jDiscFire);
+                        EraseMonitorHis(CurValue, MPLHisOrigin + CurrentUnit, jDiscFire);
+                        // Correct the time interval
+//                        RingInterval(jPointer, CurrentUnit) = RingCorFullTime(jPointer, CurrentUnit) - RingCorFullTime(PrePointer, CurrentUnit);
+                        RingInterval[jPointer][CurrentUnit] -= RingCorFullTime[PrePointer][CurrentUnit];
+                        // Put the correct value into the histograms
+//                        CurValue = System.Convert.ToSingle(RingInterval(jPointer, CurrentUnit));
+                        CurValue = (float)(RingInterval[jPointer][CurrentUnit]);
+                        EnterMonitorHis(CurValue, MPSHisOrigin + CurrentUnit, jDiscFire);
+                        EnterMonitorHis(CurValue, MPLHisOrigin + CurrentUnit, jDiscFire);
+                        //                        if (MarkerSync(CurrentUnit))
+                        if (MarkerSync[CurrentUnit])
+                        {
+                            //                            PrelimGPSTime = MarkerBase(CurrentUnit) + MarkerPeriod(CurrentUnit) * RingCorFullTime(jPointer, CurrentUnit);
+                            //                            PrelimGPSTime = MarkerBase(CurrentUnit) + MarkerPeriod(CurrentUnit) * RingCorFullTime[jPointer][CurrentUnit];
+                            //                            PrelimGPSTime = MarkerBase(CurrentUnit) + MarkerPeriod[CurrentUnit] * RingCorFullTime[jPointer][CurrentUnit];
+                            PrelimGPSTime = MarkerBase[CurrentUnit] + MarkerPeriod[CurrentUnit] * RingCorFullTime[jPointer][CurrentUnit];
+                            //                            // Print #2, "PrelimGPSTime : " & Format$(PrelimGPSTime) & " " & Format$(LastGoodGPSTime(CurrentUnit))
+                                                        // Print #2, "PrelimGPSTime : " & Format$(PrelimGPSTime) & " " & Format$(LastGoodGPSTime[CurrentUnit])
+                            //                            if (PrelimGPSTime >= LastGoodGPSTime(CurrentUnit))
+                            if (PrelimGPSTime >= LastGoodGPSTime[CurrentUnit])
+                            {
+                                // Also replace a previously calculated GPS time.
+//                                RingGPSTime(jPointer, CurrentUnit) = PrelimGPSTime;
+                                RingGPSTime[jPointer][CurrentUnit] = PrelimGPSTime;
+                                //                                LastGoodGPSTime(CurrentUnit) = PrelimGPSTime;
+                                LastGoodGPSTime[CurrentUnit] = PrelimGPSTime;
+                            }
+                            else
+                            {
+                                //                                RingGPSTime(jPointer, CurrentUnit) = -1#;
+                                RingGPSTime[jPointer][CurrentUnit] = -1;
+                                //                                BadGPSCount(CurrentUnit) = BadGPSCount(CurrentUnit) + 1;
+                                BadGPSCount[CurrentUnit]++;
+                                BadInRecord = true;
+                            }
+                        }
+                    }
+                    //                    RingInterval(NewestPointer(CurrentUnit), CurrentUnit) = RingCorFullTime(NewestPointer(CurrentUnit), CurrentUnit) - RingCorFullTime(jPointer, CurrentUnit);
+                    //                    RingInterval(NewestPointer(CurrentUnit), CurrentUnit) = RingCorFullTime(NewestPointer(CurrentUnit), CurrentUnit) - RingCorFullTime[jPointer][CurrentUnit];
+                    //                    RingInterval(NewestPointer(CurrentUnit), CurrentUnit) = RingCorFullTime[NewestPointer[CurrentUnit]][CurrentUnit] - RingCorFullTime[jPointer][CurrentUnit];
+                    RingInterval[NewestPointer[CurrentUnit]][CurrentUnit] -= RingCorFullTime[jPointer][CurrentUnit];
+                }
+                else
+                {
+                    // It is a late overflow
+//                    LateOverCount(CurrentUnit) = LateOverCount(CurrentUnit) + 1;
+                    LateOverCount[CurrentUnit]++;
+                    // CommentMessage = CommentMessage & " " & "Late Overflow " & Format$(NewestPointer(CurrentUnit)) & " " & Format$(CurrentUnit)
+//                    LateOverflow(CurrentUnit) = true;
+                    LateOverflow[CurrentUnit] = true;
+                    //RingCorTOscHOB(NewestPointer(CurrentUnit), CurrentUnit) = RingCorTOscHOB(NewestPointer(CurrentUnit), CurrentUnit) + 1;
+                    //RingCorFullTime(NewestPointer(CurrentUnit), CurrentUnit) = 65536#  * System.Convert.ToDouble(RingCorTOscHOB(NewestPointer(CurrentUnit), CurrentUnit)) + RingRawTOscLOB(NewestPointer(CurrentUnit), CurrentUnit);
+//                    RingCorTOscHOB[NewestPointer(CurrentUnit)][CurrentUnit] = RingCorTOscHOB[NewestPointer(CurrentUnit)][CurrentUnit] + 1;
+//                    RingCorTOscHOB[NewestPointer(CurrentUnit)][CurrentUnit] = RingCorTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] + 1;
+                    RingCorTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] = RingCorTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit] + 1;
+                    //                    RingCorFullTime[NewestPointer(CurrentUnit)][CurrentUnit] = 65536.0 * (double)(RingCorTOscHOB[NewestPointer(CurrentUnit)][CurrentUnit]) + RingRawTOscLOB[NewestPointer(CurrentUnit)][CurrentUnit];
+                    //                    RingCorFullTime[NewestPointer(CurrentUnit)][CurrentUnit] = 65536.0 * (double)(RingCorTOscHOB[NewestPointer(CurrentUnit)][CurrentUnit]) + RingRawTOscLOB[NewestPointer[CurrentUnit]][CurrentUnit];
+                    //                    RingCorFullTime[NewestPointer(CurrentUnit)][CurrentUnit] = 65536.0 * (double)(RingCorTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit]) + RingRawTOscLOB[NewestPointer[CurrentUnit]][CurrentUnit];
+                    RingCorFullTime[NewestPointer[CurrentUnit]][CurrentUnit] = 65536.0 * (double)(RingCorTOscHOB[NewestPointer[CurrentUnit]][CurrentUnit]) + RingRawTOscLOB[NewestPointer[CurrentUnit]][CurrentUnit];
+                }
+            }
+            //            if (MarkerSync(CurrentUnit))
+            if (MarkerSync[CurrentUnit])
+            {
+                // Calculate the GPS Time
+//                RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit) = MarkerBase(CurrentUnit) + MarkerPeriod(CurrentUnit) * RingCorFullTime(NewestPointer(CurrentUnit), CurrentUnit);
+//                RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit) = MarkerBase(CurrentUnit) + MarkerPeriod(CurrentUnit) * RingCorFullTime(NewestPointer[CurrentUnit)][CurrentUnit];
+//                RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit) = MarkerBase(CurrentUnit) + MarkerPeriod[CurrentUnit] * RingCorFullTime(NewestPointer[CurrentUnit)][CurrentUnit];
+//                RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit) = MarkerBase[CurrentUnit] + MarkerPeriod[CurrentUnit] * RingCorFullTime(NewestPointer[CurrentUnit)][CurrentUnit];
+                RingGPSTime[NewestPointer[CurrentUnit]][CurrentUnit] = MarkerBase[CurrentUnit] + MarkerPeriod[CurrentUnit] * RingCorFullTime[NewestPointer[CurrentUnit]][CurrentUnit];
+                // Do a final sanity check
+//                if (RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit) < LastGoodGPSTime(CurrentUnit))
+//                if (RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit) < LastGoodGPSTime[CurrentUnit])
+                if (RingGPSTime[NewestPointer[CurrentUnit]][CurrentUnit] < LastGoodGPSTime[CurrentUnit])
+                {
+                    //                    RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit) = -1#;
+                    RingGPSTime[NewestPointer[CurrentUnit]][CurrentUnit] = -1;
+                    EventIsBad = true;
+                    BadInRecord = true;
+                }
+                else
+                    //                    LastGoodGPSTime(CurrentUnit) = RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit);
+                    //                    LastGoodGPSTime(CurrentUnit) = RingGPSTime(NewestPointer[CurrentUnit)][CurrentUnit];
+                {
+                    LastGoodGPSTime[CurrentUnit] = RingGPSTime[NewestPointer[CurrentUnit]][CurrentUnit];
+                }
+            }
+            if (EventIsBad)
+            {
+                //                RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit) = -1#;
+                RingGPSTime[NewestPointer[CurrentUnit]][CurrentUnit] = -1;
+                //                BadGPSCount(CurrentUnit) = BadGPSCount(CurrentUnit) + 1;
+                //                BadGPSCount(CurrentUnit) = BadGPSCount[CurrentUnit] + 1;
+                BadGPSCount[CurrentUnit]++;
+                //ABSString = ABSString + " Bad ";
+                ABSString += " Bad ";
+            }
+            //            RingInterval(NewestPointer(CurrentUnit), CurrentUnit) = RingCorFullTime(NewestPointer(CurrentUnit), CurrentUnit) - RingCorFullTime(OffsetNewest(CurrentUnit, -1), CurrentUnit);
+            //            RingInterval(NewestPointer(CurrentUnit), CurrentUnit) = RingCorFullTime(NewestPointer[CurrentUnit)][CurrentUnit] - RingCorFullTime(OffsetNewest(CurrentUnit, -1), CurrentUnit);
+            RingInterval[NewestPointer[CurrentUnit]][CurrentUnit] -= RingCorFullTime[OffsetNewest(CurrentUnit, -1)][CurrentUnit];
+            //            ABSString = ABSString + " " + Format(RingInterval(NewestPointer(CurrentUnit), CurrentUnit)) + " " + Format(RingRawFullTime(NewestPointer(CurrentUnit), CurrentUnit));
+            //            ABSString = ABSString + " " + Format(RingInterval(NewestPointer(CurrentUnit), CurrentUnit)) + " " + Format(RingRawFullTime(NewestPointer[CurrentUnit)][CurrentUnit]);
+            ABSString += " " + std::to_string(RingInterval[NewestPointer[CurrentUnit]][CurrentUnit]) + " " + std::to_string(RingRawFullTime[NewestPointer[CurrentUnit]][CurrentUnit]);
+            //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+            if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+            {
+                //                frmREMOTE.lblTime1(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblTime1(iFor).Caption = Format(RingInterval(NewestPointer(CurrentUnit)][CurrentUnit]); //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).Visible = true; //TODO connect to wx with event
+                //                frmREMOTE.lblTrueTime(iFor).Caption = Format(RingRawFullTime(NewestPointer(CurrentUnit), CurrentUnit)); //TODO connect to wx with event
+            }
+            // Do the multiplicity accounting
+            //frmMultiplicity.Calculate(RingInterval(NewestPointer(CurrentUnit), CurrentUnit), RingSelect(NewestPointer(CurrentUnit), CurrentUnit)); //TODO frmMultiplicity
+            // Enter the elapsed time into the proper histograms
+//            CurValue = System.Convert.ToSingle(RingInterval(NewestPointer(CurrentUnit), CurrentUnit));
+            CurValue = (float)(RingInterval[NewestPointer[CurrentUnit]][CurrentUnit]);
+            EnterMonitorHis(CurValue, MPSHisOrigin + CurrentUnit, iDiscFire);
+            EnterMonitorHis(CurValue, MPLHisOrigin + CurrentUnit, iDiscFire);
+            // Add the event to the HitSpool File
+            //if (RecordHitSpool & (CurrentUnit <= LastSpoolUnit))
+            if (RecordHitSpool && (CurrentUnit <= LastSpoolUnit))
+            {
+                //                HitSpoolRecord = Right("                      " + Format(RingGPSTime(NewestPointer(CurrentUnit), CurrentUnit), "0.000000"), 12);
+                HitSpoolRecord = "                      " + std::to_string(RingGPSTime[NewestPointer[CurrentUnit]][CurrentUnit]);
+                //TODO insert leading spaces
+//                HitSpoolRecord = HitSpoolRecord + Right("    " + Format(RingPHA(NewestPointer(CurrentUnit), CurrentUnit)), 4);
+                HitSpoolRecord += "    " + std::to_string(RingPHA[NewestPointer[CurrentUnit]][CurrentUnit]);
+                //TODO insert leading spaces
+//                HitSpoolRecor+d + " " + Left(Format(RingSelect(NewestPointer(CurrentUnit), CurrentUnit)), 1);
+                HitSpoolRecord += " " + std::to_string(RingSelect[NewestPointer[CurrentUnit]][CurrentUnit]);
+                //Print(); //TODO HitSpoolFile
+            }
+        }
+    }
+//    EventsInSecond(CurrentUnit) = EventsInSecond(CurrentUnit) + RecoveredHits;
+    EventsInSecond[CurrentUnit] += RecoveredHits;
+    StatHisBin = RecoveredHits;
+    if (StatHisBin > RemStatHistLastChannel)
+    {
+        StatHisBin = RemStatHistLastChannel;
+        //RemStatHis(1, StatHisBin, CurrentUnit) = RemStatHis(1, StatHisBin, CurrentUnit) + 1;
+        RemStatHis[1][StatHisBin][CurrentUnit]++;
+    }
+
+    //if ((chkLogDuplicates.Value == 1) & (LatestRemoteTiming(CurrentUnit, CopyIndex) != ""))
+    if ((chkLogDuplicates_Value == 1) && (LatestRemoteTiming[CurrentUnit][CopyIndex] != ""))
+    {
+        // Duplicate readout
+        //LogEntry("Prev " + LatestRemoteTiming(CurrentUnit, CopyIndex));
+        LogEntry("Prev " + LatestRemoteTiming[CurrentUnit][CopyIndex]);
+        LogEntry("This " + ABSString);
+    }
+
+    //LatestRemoteTiming(CurrentUnit, CopyIndex) = ABSString;
+    LatestRemoteTiming[CurrentUnit][CopyIndex] = ABSString;
+    //if (OrderABSOutput | (chkRecABSTiming.Value == 1))
+    if (OrderABSOutput || (chkRecABSTiming_Value == 1))
+    {
+        /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, ABSString
+
+ */
+        Process800Out += ABSString + '\n';
+    }
+    DecimateCounter = DecimateCounter + 1;
+    if (BadInRecord)
+    {
+        //if ((chkLogBadEvents.Value == 1) | ((DecimateCounter % DecimateModulo) == 0))
+        if ((chkLogBadEvents_Value == 1) || ((DecimateCounter % DecimateModulo) == 0))
+        {
+            //if ((!OrderABSOutput) & (chkRecABSTiming.Value == 0))
+            if ((!OrderABSOutput) && (chkRecABSTiming_Value == 0))
+            {
+                /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, ABSString
+
+ */
+                Process800Out += ABSString + '\n';
+            }
+            if (CrossMultiplicityEnabled)
+            {
+                //GenerateTimeStamp(ReportString); //TODO GenerateTimeStamp
+                //ReportString = ReportString + " Remote: " + Format(CurrentUnit);
+                //ReportString = ReportString + " Base: " + Format(MarkerBase(CurrentUnit));
+                //ReportString = ReportString + " Period: " + Format(MarkerPeriod(CurrentUnit));
+                ReportString += " Remote: " + std::to_string(CurrentUnit);
+                //                ReportString += " Base: " + std::to_string(MarkerBase(CurrentUnit));
+                ReportString += " Base: " + std::to_string(MarkerBase[CurrentUnit]);
+                //                ReportString += " Period: " + std::to_string(MarkerPeriod(CurrentUnit));
+                ReportString += " Period: " + std::to_string(MarkerPeriod[CurrentUnit]);
+                //                if (chkMinDiagnostics.Value == 0) 
+                if (chkMinDiagnostics_Value == 0) //TODO update from wx
+                {
+                    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #98, ReportString
+
+ */
+                    //TODO print
+                }
+//                if (chkMinDiagnostics.Value == 0) 
+                 if (chkMinDiagnostics_Value == 0) //TODO update from wx
+                 {
+                     /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+    at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+    at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+    at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+    at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+    at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+    at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+    at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+    at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+    at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+    at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+    at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+    at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+    at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+    at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+    at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+    at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+    at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+    at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+    at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+    at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+    at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+    at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+    at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+    at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+    at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+    at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+    at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+    at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+    at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+    at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+    at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+    at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+ Input:
+ Print #2, ReportString
+
+  */
+                     Process800Out += ReportString + '\n';
+                 }
+ // If chkMinDiagnostics.Value = 0 Then Print #2, CommentMessage
+                for (jFor = TotalHits + 2; jFor >= 0; jFor += -1)
+                {
+                    LocRing = OffsetNewest(CurrentUnit, -jFor);
+//                    if (chkMinDiagnostics.Value == 0) 
+                    if (chkMinDiagnostics_Value == 0) //TODO update from wx
+                    {
+                        /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, HistoryLine(LocRing, CurrentUnit)
+
+ */
+                        Process800Out += HistoryLine(LocRing, CurrentUnit) + '\n';  
+                    }
+                }
+            }
+            DecimateCounter = 0;
+        }
+    }
+
+    if (Sequence == 0)
+//        ABSStringRing(GPSRingPointer, CurrentUnit) = ABSString;
+    {
+        ABSStringRing[GPSRingPointer][CurrentUnit] = ABSString;
+    }
+    else
+//        ABSStringRing(GPSRingPointer, CurrentUnit) = ABSStringRing(GPSRingPointer, CurrentUnit) + " " + ABSString;
+//        ABSStringRing(GPSRingPointer, CurrentUnit) = ABSStringRing[GPSRingPointer][CurrentUnit] + " " + ABSString;
+    {
+        ABSStringRing[GPSRingPointer][CurrentUnit] = ABSStringRing[GPSRingPointer][CurrentUnit] + " " + ABSString;
+    }
+    if ((TotalHits == 0))
+//        EmptyRemoteCount(CurrentUnit) = EmptyRemoteCount(CurrentUnit) + 1;
+    {
+        EmptyRemoteCount[CurrentUnit]++;
+    }
+//    if ((TotalHits == 0) & (chkLogZeroRemoteHits.Value == 1) & ValidCrossUnit(CurrentUnit))
+    if ((TotalHits == 0) && (chkLogZeroRemoteHits_Value == 1) && ValidCrossUnit[CurrentUnit])// TODO connect with wx event
+    {
+        // This should almost never happen for a non-bare unit
+//        if (ZeroABSString(CurrentUnit))
+        if (ZeroABSString[CurrentUnit])
+        {
+            // Continuation, so no pre-history
+//            if (chkMinDiagnostics.Value == 0) 
+            if (chkMinDiagnostics_Value == 0) //TODO update from wx
+            {
+                /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "Xmit 0 Cont : " & ABSStringRing(GPSRingPointer, CurrentUnit)
+
+ */
+                Process800Out += "Xmit 0 Cont : " + ABSStringRing[GPSRingPointer][CurrentUnit] + '\n';
+            }
+        }
+        else
+        {
+            for (iFor = -1; iFor <= 0; iFor++)
+            {
+                iPoint = (GPSRingMod + GPSRingPointer + iFor) % GPSRingMod;
+//                if (chkMinDiagnostics.Value == 0) 
+                if (chkMinDiagnostics_Value == 0) //TODO update from wx
+                {
+                    /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "Xmit 0 Start: " & ABSStringRing(iPoint, CurrentUnit)
+
+ */
+                    Process800Out += "Xmit 0 Start: " + ABSStringRing[iPoint][CurrentUnit] + '\n';
+                }
+            }
+//            ZeroABSString(CurrentUnit) = true;
+            ZeroABSString[CurrentUnit] = true;
+        }
+    }
+//    else if (ZeroABSString(CurrentUnit))
+    else if (ZeroABSString[CurrentUnit])
+    {
+//        if (chkMinDiagnostics.Value == 0) 
+        if (chkMinDiagnostics_Value == 0) //TODO update from wx
+        {
+            /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "Xmit 0 End  : " & ABSStringRing(GPSRingPointer, CurrentUnit)
+
+ */
+            Process800Out += "Xmit 0 End  : " + ABSStringRing[GPSRingPointer][CurrentUnit] + '\n';
+        }
+//        ZeroABSString(CurrentUnit) = false;
+        ZeroABSString[CurrentUnit] = false;
+    }
+    else
+    {
+        //        ZeroABSString(CurrentUnit) = false;
+        ZeroABSString[CurrentUnit] = false;
+    }
+
+    ABSString = "Null ABSString";
+//    PrevTimingLost(CurrentUnit) = TimingLost(CurrentUnit);
+//    PrevTimingLost(CurrentUnit) = TimingLost[CurrentUnit];
+    PrevTimingLost[CurrentUnit] = TimingLost[CurrentUnit];
+    if (Process800Out.size() > 0)
+    {
+        wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
+        MinuteFile << Process800Out << std::flush;
+        Process800Out.clear();
+    }
+}
+
+
+void LandMonitorApp::DecomLongTube(std::string LongTubeRecord)
+{
+    std::string ABSString;
+    std::string HexString;
+    bool SciData;
+    bool DiscFire;
+    int iDiscFire;
+    long ScalerCount;
+    long CurPls;
+    long ThisTime;
+    double SyncFullTime;
+    double HouseStartTime;
+    double HouseEndTime;
+    float CurValue;
+    //long[] Time1 = new long[48];
+    long Time1[48];
+    int I;
+    int iFor;
+    int jFor;
+    int kFor;
+    int LocRing;
+    int DatFlag;
+    int EvSent;
+    int EvTotal;
+    int EvActual;
+    int MaxEvent;
+    int CurHist;
+    int StatHisBin;
+    int nIgnore;
+    int nLookBackAvailable;
+    double PrelimGPSTime;
+    bool EventIsBad;
+    int CorrectionPointer;
+    int PrePointer;
+    std::string HitSpoolRecord;
+    long TempLong;
+    int Adr;
+    int Flg;
+    std::string LongTubeOut;
+    /* Cannot convert OnErrorGoToStatementSyntax, CONVERSION ERROR: Conversion for OnErrorGoToLabelStatement not implemented, please report this issue in 'On Error GoTo LongTubeError' at character 910
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitOnErrorGoToStatement(OnErrorGoToStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.OnErrorGoToStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+On Error GoTo LongTubeError
+
+ */
+    AnyRemoteSeen = true;
+    if (VerboseDiagnostics)
+    {
+        //HexString = Right("00" + Hex(Strings.Asc(Mid(LongTubeRecord, 1))), 2);
+        //HexString = HexString + " " + Right("00" + Hex(Strings.Asc(Mid(LongTubeRecord, 2))), 2);
+        //HexString = HexString + " " + Right("00" + Hex(Strings.Asc(Mid(LongTubeRecord, 3))), 2);
+        //HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(LongTubeRecord, 4))), 2);
+        //HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(LongTubeRecord, 5))), 2);
+        //HexString = HexString + " " + Right("00" + Hex(Strings.Asc(Mid(LongTubeRecord, 6))), 2);
+        //HexString = HexString + " " + Right("00" + Hex(Strings.Asc(Mid(LongTubeRecord, 7))), 2);
+        //HexString = HexString + " ";
+        //for (iFor = 8; iFor <= Strings.Len(LongTubeRecord); iFor++)
+        //    HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(LongTubeRecord, iFor))), 2);
+        for (iFor = 0; iFor < LongTubeRecord.size(); iFor++)
+        {
+            if ((1 == iFor) || (2 == iFor) || (5 == iFor) || (6 == iFor) || (7 == iFor))
+                HexString.push_back(' ');
+            uint8_t tempNib = (uint8_t) LongTubeRecord[iFor] >> 4;
+            HexString.push_back(hexCharLUT[tempNib]);
+            tempNib = LongTubeRecord[iFor] & 0x0f;
+            HexString.push_back(hexCharLUT[tempNib]);
+        }
+        ;/* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+  Print #2, "DecomLongTube: " & HexString
+
+ */
+        LongTubeOut += "DecomLongTube: " + HexString + '\n';
+    }
+    // The first five bytes are independent of firmware version
+    // Master Board Number
+    //MasterNumber = Strings.Asc(LongTubeRecord) & 7;
+    //MasterNumber = std::stoi(LongTubeRecord.substr(0,1).c_str(), nullptr, 10);
+    MasterNumber = LongTubeRecord[0];
+    Sequence = MasterNumber & 48; // both masked in the same convereted byte
+    MasterNumber &= 7;
+    if ((MasterNumber < 0) || (MasterNumber > LastMaster))
+    {
+        //Exception("Bad Master Number " + Format(MasterNumber));
+        Exception("Bad Master Number " + MasterNumber);
+        return;
+    }
+    // Multiple readouts per second are possible
+    //Sequence = Strings.Asc(LongTubeRecord) & 48;
+    //Sequence = Sequence / (double)16;
+    Sequence >>= 4;
+    // Distinguish between first copy and all later copies
+    if (Sequence == 0)
+        CopyIndex = 0;
+    else
+        CopyIndex = 1;
+    if (VerboseDiagnostics)
+    {
+        /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "Sequence " & Format$(Sequence)
+
+ */// Remote Unit Address
+        LongTubeOut += ("Sequence " + std::to_string(Sequence) + '\n');
+    }
+
+    //RemoteInMaster = Strings.Asc(Mid(LongTubeRecord, 2)) & 15;
+    RemoteInMaster = LongTubeRecord[1] & 15;
+
+
+    //if ((RemoteInMaster < 0) | (RemoteInMaster > LastRemote(MasterNumber)))
+    if ((RemoteInMaster < 0) || (RemoteInMaster > LastRemote[MasterNumber]))
+    {
+        //Exception("Bad Remote Number " + Format(MasterNumber) + " " + Format(RemoteInMaster));
+        Exception("Bad Remote Number " + std::to_string(MasterNumber) + " " + std::to_string(RemoteInMaster));
+        return;
+    }
+
+    //CurrentUnit = RemoteBaseAddress(MasterNumber) + RemoteInMaster;
+    CurrentUnit = RemoteBaseAddress[MasterNumber] + RemoteInMaster;
+    if (Sequence == 0)
+    {
+        //RecordCount(CurrentUnit + 3) = RecordCount(CurrentUnit + 3) + 1;
+        RecordCount[CurrentUnit + 3] = RecordCount[CurrentUnit + 3] + 1;
+    }
+    else
+    {
+        //RecordCount(CurrentUnit + LastUnit + 4) = RecordCount(CurrentUnit + LastUnit + 4) + 1;
+        RecordCount[CurrentUnit + LastUnit + 4] = RecordCount[CurrentUnit + LastUnit + 4] + 1;
+    }
+    if (Sequence == 0)
+    {
+        // Track the distribution of events per second
+        //StatHisBin = EventsInSecond(CurrentUnit);
+        StatHisBin = EventsInSecond[CurrentUnit];
+        if (StatHisBin > RemStatHistLastChannel)
+            StatHisBin = RemStatHistLastChannel;
+        //RemStatHis(2, StatHisBin, CurrentUnit) = RemStatHis(2, StatHisBin, CurrentUnit) + 1;
+        (RemStatHis[2][StatHisBin][CurrentUnit])++;
+        //EventsInSecond(CurrentUnit) = 0;
+        EventsInSecond[CurrentUnit] = 0;
+        // This is the first (and possibly only) readout for this second
+        // Get the non-resetting counting scaler and compute the "deltas"
+        //ScalerCount = Strings.Asc(Mid(LongTubeRecord, 3));
+        //ScalerCount = (256 * ScalerCount) + Strings.Asc(Mid(LongTubeRecord, 4));
+        //ScalerCount = (256 * ScalerCount) + Strings.Asc(Mid(LongTubeRecord, 5));
+        ScalerCount = (uint8_t)LongTubeRecord[3];
+        ScalerCount <<= 8;
+        ScalerCount += (uint8_t)LongTubeRecord[4];
+        ScalerCount <<= 8;
+        ScalerCount += (uint8_t)LongTubeRecord[5];
+        if (VerboseDiagnostics)
+        {
+            /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
+   at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
+   at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.WithDelegateToParentAnnotation(SyntaxToken lastSourceToken, SyntaxToken destination)
+   at ICSharpCode.CodeConverter.Shared.TriviaConverter.PortConvertedTrivia[T](SyntaxNode sourceNode, T destination)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitIdentifierName(IdentifierNameSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.IdentifierNameSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitSimpleArgument(SimpleArgumentSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.SimpleArgumentSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.<>c__DisplayClass83_0.<ConvertArguments>b__0(ArgumentSyntax a, Int32 i)
+   at System.Linq.Enumerable.<SelectIterator>d__5`2.MoveNext()
+   at System.Linq.Enumerable.WhereEnumerableIterator`1.MoveNext()
+   at Microsoft.CodeAnalysis.CSharp.SyntaxFactory.SeparatedList[TNode](IEnumerable`1 nodes)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitArgumentList(ArgumentListSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ArgumentListSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.NodesVisitor.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingNodesVisitor.DefaultVisit(SyntaxNode node)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.VisitInvocationExpression(InvocationExpressionSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.InvocationExpressionSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at ICSharpCode.CodeConverter.CSharp.VisualBasicConverter.MethodBodyVisitor.VisitExpressionStatement(ExpressionStatementSyntax node)
+   at Microsoft.CodeAnalysis.VisualBasic.Syntax.ExpressionStatementSyntax.Accept[TResult](VisualBasicSyntaxVisitor`1 visitor)
+   at Microsoft.CodeAnalysis.VisualBasic.VisualBasicSyntaxVisitor`1.Visit(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.ConvertWithTrivia(SyntaxNode node)
+   at ICSharpCode.CodeConverter.CSharp.CommentConvertingMethodBodyVisitor.DefaultVisit(SyntaxNode node)
+
+Input:
+Print #2, "Scaler Count " & Format$(ScalerCount)
+
+ */
+            LongTubeOut += "Scaler Count ";
+            LongTubeOut += std::to_string(ScalerCount);
+            LongTubeOut.push_back('\n');
+        }
+
+        //Deltas(CurrentUnit) = ScalerCount - Counts(CurrentUnit);
+        //if (Deltas(CurrentUnit) < 0)
+        //    Deltas(CurrentUnit) = Deltas(CurrentUnit) + DelCycle;
+        //Counts(CurrentUnit) = ScalerCount;
+        Deltas[CurrentUnit] = ScalerCount - Counts[CurrentUnit];
+        if (Deltas[CurrentUnit] < 0)
+            Deltas[CurrentUnit] += DelCycle;
+        Counts[CurrentUnit] = ScalerCount;
+        //        lblCts(CurrentUnit).Caption = Format(Counts(CurrentUnit)); //TODO connect to wx with event        
+        //        lblDel(CurrentUnit).Caption = Format(Deltas(CurrentUnit)); //TODO connect to wx with event        
+                //if (NotSeenYet(CurrentUnit))
+                //{
+                //    ResetDeltaRef(CurrentUnit) = ScalerCount;
+                //    NotSeenYet(CurrentUnit) = false;
+                //}        
+        if (NotSeenYet[CurrentUnit])
+        {
+            ResetDeltaRef[CurrentUnit] = ScalerCount;
+            NotSeenYet[CurrentUnit] = false;
+        }
+        //        lblHourDel(CurrentUnit).Caption = Format(ScalerCount - ResetDeltaRef(CurrentUnit)); //TODO connect to wx with event    }
+    }
+    //if (FirmVersion(CurrentUnit) == 700)
+    if (FirmVersion[CurrentUnit] == 700)
+    {
+        // Firmware version 700 code copied from Version 8.41
+        // This is a multiplicity enabled unit with extended event buffers
+        // Science and housekeeping data formats are quite different
+        // Housekeeping format is identical to that of the 600 series
+        // and is handled by the "DecomShortTube" routine
+        // Event format uses a longer record that is handled by this "DecomLongTube" routine
+        //DatFlag = (Strings.Asc(Mid(LongTubeRecord, 2))) / 16;
+        DatFlag = (uint8_t)LongTubeRecord[2] / 16;
+//        frmHouse.lblRemStatus1(CurrentUnit).Caption = DatFlag; //TODO connect to wx with event
+        SciData = (DatFlag & 1) == 1;
+        if (SciData)
+        {
+            // Format as science data
+//            frmHouse.lblRemStatus2(CurrentUnit).Caption = "Science"; //TODO connect to wx with event            
+            //EvSent = Strings.Asc(Mid(LongTubeRecord, 6));
+            //EvTotal = Strings.Asc(Mid(LongTubeRecord, 7)); 
+            EvSent = (uint8_t)LongTubeRecord[6];
+            EvTotal = (uint8_t)LongTubeRecord[7];
+            //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+            if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+            {
+//                frmREMOTE.lblSent.Caption = Format(EvSent); //TODO connect to wx with event                
+//                frmREMOTE.lblTotal.Caption = Format(EvTotal); //TODO connect to wx with event
+                //for (iFor = 0; iFor <= nEv700 - 1; iFor++)
+//                    frmREMOTE.lblTrueTime(iFor).Visible = false; //TODO connect to wx with event
+            }
+            MaxEvent = EvSent;
+            if (EvSent > 0)
+            {
+                // Format errors of various kinds can make the
+                // number of events sent in error, so limit it
+                // to avoid array overflow problems, etc.
+                if (MaxEvent > nEv700)
+                    MaxEvent = nEv700;
+                // Pulse Height Data
+                //for (iFor = 0; iFor <= MaxEvent - 1; iFor++)
+                for (iFor = 0; iFor < MaxEvent - 1; iFor++)
+                {
+                    //DiscFire = (Strings.Asc(Mid(LongTubeRecord, iFor + 8)) & 128) != 0;
+                    //CurPls = (Strings.Asc(Mid(LongTubeRecord, iFor + 8)) & 127);
+                    //Time1[iFor] = Asc(Mid(LongTubeRecord, iFor + nEv700 + 8));
+                    //Time1[iFor] = 256 * Time1[iFor] + Asc(Mid(LongTubeRecord, iFor + 2 * nEv700 + 8));
+                    DiscFire = ((uint8_t)LongTubeRecord[iFor + 8] & 128) != 0;
+                    CurPls = ((uint8_t)LongTubeRecord[iFor + 8]) & 127;
+                    Time1[iFor] = (uint8_t)LongTubeRecord[iFor + nEv700 + 8];
+                    Time1[iFor] <<= 8;
+                    Time1[iFor] += (uint8_t)LongTubeRecord[iFor + 2 * nEv700 + 8];
+                    if ((CurrentUnit <= LastUnit))
+                    {
+                        //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+                        if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+                        {
+//                            frmREMOTE.lblPHA(iFor).Visible = true; //TODO connect to wx with event
+//                            frmREMOTE.lblTime1(iFor).Visible = true; //TODO connect to wx with event
+//                            frmREMOTE.lblPHA(iFor).Caption = Strings.Format(CurPls); //TODO connect to wx with event
+                            if (!DiscFire)
+                            { 
+//                                frmREMOTE.lblPHA(iFor).BackColor = 0xFFFF &; //TODO connect to wx with event
+                            }
+                            else
+                            {
+                                //                                frmREMOTE.lblPHA(iFor).BackColor = 0xFFFFFF; //TODO connect to wx with event
+                            }
+//                            frmREMOTE.lblTime1(iFor).Caption = Strings.Format(Time1[iFor]); //TODO connect to wx with event
+                        }
+                        // Keep track of where the hits end up
+                        //HitTrack(0, CurrentUnit) = HitTrack(0, CurrentUnit) + 1;
+                        (HitTrack[0][CurrentUnit])++;
+                        // First bump the relevant counters
+                        //if (CurPls < MonitorLimit(WMin, CurrentUnit))
+                        //    Below(CurrentUnit) = Below(CurrentUnit) + 1;
+                        //else if (CurPls > MonitorLimit(WMax, CurrentUnit))
+                        //    Above(CurrentUnit) = Above(CurrentUnit) + 1;
+                        //else
+                        //    InArray(CurrentUnit) = InArray(CurrentUnit) + 1;
+                        if (CurPls < MonitorLimit[WMin][CurrentUnit])
+                            Below[CurrentUnit]++;
+                        else if (CurPls > MonitorLimit[WMax][CurrentUnit])
+                            Above[CurrentUnit]++;
+                        else
+                            InArray[CurrentUnit]++;
+                        // Do the multiplicity accounting
+                        // Note that the remote address is a global variable
+                        //frmMultiplicity.Calculate(System.Convert.ToDouble(Time1[I]), DiscFire); //TODO convert frmMultiplicity
+                        // Enter the PH and elapsed time into the proper histograms
+                        if (!DiscFire)
+                        {
+                            CurHist = CurrentUnit;
+                            CurValue = CurPls;
+                            EnterMonitorHis(CurValue, CurHist, 0);
+                            CurValue = Time1[iFor];
+                            CurHist = (LastUnit + 1) + CurrentUnit;
+                            EnterMonitorHis(CurValue, CurHist, 0);
+                            CurHist = 2 * (LastUnit + 1) + CurrentUnit;
+                            EnterMonitorHis(CurValue, CurHist, 0);
+                        }
+                        else
+                        {
+                            CurHist = CurrentUnit;
+                            CurValue = CurPls;
+                            EnterMonitorHis(CurValue, CurHist, 1);
+                            CurValue = Time1[iFor];
+                            CurHist = (LastUnit + 1) + CurrentUnit;
+                            EnterMonitorHis(CurValue, CurHist, 1);
+                            CurHist = 2 * (LastUnit + 1) + CurrentUnit;
+                            EnterMonitorHis(CurValue, CurHist, 1);
+                        }
+                    }
+                }
+                //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+                if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+                {
+                    if (MaxEvent < nEv700)
+                    {
+                        for (iFor = MaxEvent; iFor <= nEv700 - 1; iFor++)
+                        {
+//                            frmREMOTE.lblPHA(iFor).Visible = false;
+ //TODO connect to wx with event
+//                            frmREMOTE.lblTime1(iFor).Visible = false;
+ //TODO connect to wx with event
+                        }
+                    }
+                }
+            }
+            //else if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
+            else if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
+            {
+                for (iFor = 0; iFor <= nEv700 - 1; iFor++)
+                {
+//                    frmREMOTE.lblPHA(iFor).Visible = false;
+ //TODO connect to wx with event
+//                    frmREMOTE.lblTime1(iFor).Visible = false;
+ //TODO connect to wx with event
+                }
+            }
+        }
+        else
+            Exception("Housekeeping data in long readout for 700 series");
+    }
+    //else if (FirmVersion(CurrentUnit) == 800)
+    //    Process800(LongTubeRecord);
+    //else if (FirmVersion(CurrentUnit) == 900)
+    //    frmNewElectronics.Remote500Long(LongTubeRecord);
+    else if (FirmVersion[CurrentUnit] == 800)
+    {
+        //LongTubeOut += "800tube \n";
+        Process800(LongTubeRecord); 
+    }
+    else if (FirmVersion[CurrentUnit] == 900)
+    {
+        //frmNewElectronics.Remote500Long(LongTubeRecord);  //TODO process other tubes
+    }
+    
+    if (LongTubeOut.size() > 0)
+    {
+        wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
+        MinuteFile << LongTubeOut << std::flush;
+        LongTubeOut.clear();
+    }
+    return;
+//LongTubeError: //TODO try catch to hndle errors
+//    ;
+//    nLongTubeInternalErr = nLongTubeInternalErr + 1#;
+//    if (frmMonitor.chkMinDiagnostics.Value == 0)
+//        Exception("Long Tube Processing Internal Error");
+//    return;
+}
+
 void LandMonitorApp::RackData()
 {
     bool StillHope;
@@ -4237,14 +6532,14 @@ void LandMonitorApp::RackData()
         {
             //RawDataRead.push_back(hexCharLUT[Dta[iFor] >> 4]);
             //RawDataRead.push_back(hexCharLUT[Dta[iFor] & 0x0f]);
-            char temp = Dta[iFor] >> 4;
-            RawDataRead.push_back(hexCharLUT[temp]);
-            temp = Dta[iFor] & 0x0f;
-            RawDataRead.push_back(hexCharLUT[temp]);
+            char tempNib = Dta[iFor] >> 4;
+            RawDataRead.push_back(hexCharLUT[tempNib]);
+            tempNib = Dta[iFor] & 0x0f;
+            RawDataRead.push_back(hexCharLUT[tempNib]);
         }
         //RawDataRead.push_back('\n');
 
-        MinuteFileOut += RawDataRead; //Buffer writes to file
+        MinuteFileOut += RawDataRead + '\n'; //Buffer writes to file
         /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
    at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
    at System.Collections.Generic.Dictionary`2.Insert(TKey key, TValue value, Boolean add)
@@ -4402,10 +6697,10 @@ Print #98, "Large Internal Rack Buffer: " & Format$(lRackBuffer, "0")
                     //    HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
                     for (iFor = 0; iFor < ShortTubeByteLen + RackSyncLen + 2; iFor++)
                     {
-                        char temp = Current[iFor] >> 4;
-                        HexString.push_back(hexCharLUT[temp]);
-                        temp = Current[iFor] & 0x0f;
-                        HexString.push_back(hexCharLUT[temp]);
+                        char tempNib = Current[iFor] >> 4;
+                        HexString.push_back(hexCharLUT[tempNib]);
+                        tempNib = Current[iFor] & 0x0f;
+                        HexString.push_back(hexCharLUT[tempNib]);
                     }
                     /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
 at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
@@ -4447,7 +6742,7 @@ Input:
         Print #2, "TubeSync: " & HexString
 
  */
-                    MinuteFileOut += "TubeSync: " + HexString;
+                    MinuteFileOut += "TubeSync: " + HexString + '\n';
                 }
                 // The string is long enough, look for delimiter
                 //if (Mid(Current, ShortTubeByteLen + RackSyncLen + 1, 2) == CRLF)
@@ -4507,10 +6802,12 @@ Input:
                         }
                     }
                     //DeviceData = Mid(Current, RackSyncLen + 1, ShortTubeByteLen);
-                    std::string DeviceData(Current.begin() + RackSyncLen + 1, Current.begin() + ShortTubeByteLen);
+                    //std::string DeviceData(Current.begin() + RackSyncLen + 1, Current.begin() + ShortTubeByteLen);
+                    std::string DeviceData(Current.begin() + RackSyncLen, Current.begin() + ShortTubeByteLen);
                     if (VerboseDiagnostics)
                     {
                         MinuteFileOut += "ShortTube found";
+                        MinuteFileOut.push_back('\n');
                     }
                     /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
 at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
@@ -4578,10 +6875,10 @@ Print #2, "ShortTube found"
                         //    HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
                         for (iFor = 0; iFor < ShortTubeByteLen + RackSyncLen + 2; iFor++)
                         {
-                            char temp = Current[iFor] >> 4;
-                            HexString.push_back(hexCharLUT[temp]);
-                            temp = Current[iFor] & 0x0f;
-                            HexString.push_back(hexCharLUT[temp]);
+                            char tempNib = Current[iFor] >> 4;
+                            HexString.push_back(hexCharLUT[tempNib]);
+                            tempNib = Current[iFor] & 0x0f;
+                            HexString.push_back(hexCharLUT[tempNib]);
                         }
                         Exception(HexString);
                     }
@@ -4619,10 +6916,10 @@ Print #2, "ShortTube found"
                     //for (iFor = 1; iFor <= LongTubeByteLen + RackSyncLen + 2; iFor++)
                     for (iFor = 0; iFor < LongTubeByteLen + RackSyncLen + 2; iFor++)
                     {
-                        char temp = Current[iFor] >> 4;
-                        HexString.push_back(hexCharLUT[temp]);
-                        temp = Current[iFor] & 0x0f;
-                        HexString.push_back(hexCharLUT[temp]);
+                        char tempNib = Current[iFor] >> 4;
+                        HexString.push_back(hexCharLUT[tempNib]);
+                        tempNib = Current[iFor] & 0x0f;
+                        HexString.push_back(hexCharLUT[tempNib]);
                     }
                         //HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
 
@@ -4666,7 +6963,9 @@ Input:
         Print #2, "TubeSync: " & HexString
 
  */
-                    MinuteFileOut += "TubeSync: " + HexString + '\n';
+                    MinuteFileOut += "TubeSync: ";
+                    MinuteFileOut += HexString;
+                    MinuteFileOut.push_back('\n');
 
                 }
                     // The string is long enough, look for delimiter
@@ -4746,10 +7045,12 @@ Print #98, "Reset timing: No delimiter long tube"
                             }
                         }
                     }
-                    std::string DeviceData(Current.begin() + RackSyncLen + 1, Current.begin() + LongTubeByteLen);
+                    //std::string DeviceData(Current.begin() + RackSyncLen + 1, Current.begin() + LongTubeByteLen);
+                    std::string DeviceData(Current.begin() + RackSyncLen, Current.begin() + LongTubeByteLen);
                     if (VerboseDiagnostics)
                     {
                         MinuteFileOut += "LongTube found";
+                        MinuteFileOut.push_back('\n');
                     }
                             /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
 at System.ThrowHelper.ThrowArgumentException(ExceptionResource resource)
@@ -4822,6 +7123,7 @@ Print #2, "LongTube found"
                 //    StillHope = false;
                 //    break;
                 //}
+                    DecomLongTube(DeviceData);
                     if (Current.size() > (LongTubeByteLen + RackSyncLen + 2))
                     {
                         //Current = Mid(Current, LongTubeByteLen + RackSyncLen + 3);
@@ -4845,10 +7147,10 @@ Print #2, "LongTube found"
                         //    HexString = HexString + Right("00" + Hex(Strings.Asc(Mid(Current, iFor, 1))), 2);
                         for (iFor = 0; iFor < LongTubeByteLen + RackSyncLen + 2; iFor++)
                         {
-                            char temp = Current[iFor] >> 4;
-                            HexString.push_back(hexCharLUT[temp]);
-                            temp = Current[iFor] & 0x0f;
-                            HexString.push_back(hexCharLUT[temp]);
+                            char tempNib = Current[iFor] >> 4;
+                            HexString.push_back(hexCharLUT[tempNib]);
+                            tempNib = Current[iFor] & 0x0f;
+                            HexString.push_back(hexCharLUT[tempNib]);
                         }
                         Exception(HexString);
                     }
@@ -6726,7 +9028,7 @@ Print #2, "NgrMessageSyncB: " & Mid$(Current, RackSyncLen + 1, NgrMessageByteLen
         if(MinuteFileOut.size() > 0)
         {
             wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
-            MinuteFile << MinuteFileOut << '\n' << std::flush;
+            MinuteFile << MinuteFileOut << std::flush;
             MinuteFileOut.clear();
         }
     }
