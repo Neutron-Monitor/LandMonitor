@@ -52,7 +52,7 @@ bool chkTolerateGaps_Value = true; //TODO update from wx
 const char* hexCharLUT = "0123456789ABCDEF"; //Hex char Lookup Table
 bool chkEmulate616_Value = true; //TODO update from wx
 bool chkLogZeroRemoteHits_Value = true; //TODO update from wx
-bool chkLogDuplicates_Value = true; //TODO update from wx
+bool chkLogDuplicates_Value = false; //TODO update from wx
 bool chkRecABSTiming_Value = true; //TODO update from wx
 bool chkLogBadEvents_Value = true; //TODO update from wx
 
@@ -255,7 +255,8 @@ std::string MonitorRunStart;
 float MonitorElapsedTime;
 // Remote Statistics Histograms
 const int RemStatHistLastChannel = 200;
-const int LastRemStatHist = 2;
+//const int LastRemStatHist = 2;
+const int LastRemStatHist = 3;
 //std::vector<std::vector<std::vector<long>>> RemStatHis(LastRemStatHist, std::vector<std::vector<long>>(RemStatHistLastChannel, std::vector<long>(AbsoluteLastUnit)));
 //std::vector<long> RemStatHistMax(LastRemStatHist);
 //std::vector<std::string> RemStatHistTag(LastRemStatHist);
@@ -4157,14 +4158,19 @@ void LandMonitorApp::StandardizeString(std::string& OpString) {
 void LandMonitorApp::SetUpMaster(int MasterNum, std::string SetString) {
     std::string ParsedString[20];
     int nUnit;
-    int LastRemote = std::stoi(SetString.substr(0, SetString.find(" ")));
-    if (LastRemote >= 0) {
-        int RemoteBaseAddress = LastUnit + 1;
-        LastUnit += LastRemote + 1;
-        for (int iFor = 0; iFor <= LastRemote; iFor++) {
-            nUnit = RemoteBaseAddress + iFor;
+    //int LastRemote = std::stoi(SetString.substr(0, SetString.find(" ")));
+    LastRemote[MasterNum] = std::stoi(SetString.substr(0, SetString.find(" ")));
+    //if (LastRemote >= 0) {
+    if (LastRemote[MasterNum] >= 0) {
+        //RemoteBaseAddress = LastUnit + 1;
+        RemoteBaseAddress[MasterNum] = LastUnit + 1;
+        //LastUnit += LastRemote + 1;
+        LastUnit += LastRemote[MasterNum] + 1;
+        //for (int iFor = 0; iFor <= LastRemote; iFor++) {
+        for (int iFor = 0; iFor <= LastRemote[MasterNum]; iFor++) {
+            //nUnit = RemoteBaseAddress + iFor;
+            nUnit = RemoteBaseAddress[MasterNum] + iFor;
             //FirmVersion[nUnit] = std::stoi(SetString.substr(iFor * 3 + 1, 2));
-            //FirmVersion[nUnit] = std::stoi(SetString.substr(iFor * 3 + 1, 3));
             std:string tmpstr = SetString.substr(2 + iFor * 4, 3);
             FirmVersion[nUnit] = std::stoi(tmpstr);
             UnitTag[nUnit] = std::to_string(MasterNum) + (iFor < 10 ? "0" : "") + std::to_string(iFor);
@@ -4592,7 +4598,8 @@ void LandMonitorApp::Process800(std::string TubeRecord800)
     //SequenceListString = SequenceListString + UnitTag(CurrentUnit) + ",";
     SequenceListString = SequenceListString + UnitTag[CurrentUnit] + ",";
     //SciData = (Strings.Asc(Mid(TubeRecord800, 2)) & 16) > 0;
-    SciData = (TubeRecord800[2] & 16) > 0;
+    //SciData = (TubeRecord800[2] & 16) > 0;
+    SciData = ((uint8_t)TubeRecord800[1] & 16) > 0;
 //    frmHouse.lblRemStatus1(CurrentUnit).Caption = SciData; //TODO connect to wx with event
     if (!SciData)
     {
@@ -4604,7 +4611,8 @@ void LandMonitorApp::Process800(std::string TubeRecord800)
     }
 
     //TimingLost(CurrentUnit) = (Strings.Asc(Mid(TubeRecord800, 2)) & 64) > 0;
-    TimingLost[CurrentUnit] = (TubeRecord800[2] & 64) > 0;
+    //TimingLost[CurrentUnit] = (TubeRecord800[2] & 64) > 0;
+    TimingLost[CurrentUnit] = ((uint8_t)TubeRecord800[1] & 64) > 0;
     BadInRecord = false;
     OrderABSOutput = false;
     if (SequenceTimeSystem)
@@ -4620,10 +4628,12 @@ void LandMonitorApp::Process800(std::string TubeRecord800)
     // Format as science data
     // nEntry count includes markers and housekeeping data
     //nEntry = Strings.Asc(Mid(TubeRecord800, 6));
-    nEntry = TubeRecord800[6];
+    //nEntry = TubeRecord800[6];
+    nEntry = (uint8_t)TubeRecord800[5];
     // Total number of triggers, whether they fit into the readout or not
     //TotalHits = Strings.Asc(Mid(TubeRecord800, 7));
-    TotalHits = TubeRecord800[7];
+    //TotalHits = TubeRecord800[7];
+    TotalHits = (uint8_t)TubeRecord800[6];
     // Keep track of the number of hits in the record
     RecoveredHits = 0;
     StatHisBin = TotalHits;
@@ -4671,9 +4681,11 @@ void LandMonitorApp::Process800(std::string TubeRecord800)
         for (iFor = 0; iFor <= nEntry - 1; iFor++)
         {
             //DiscFire = (Strings.Asc(Mid(TubeRecord800, iFor + 8)) & 128) != 0;
-            DiscFire = (TubeRecord800[iFor + 8] & 128) != 0;
+            //DiscFire = (TubeRecord800[iFor + 8] & 128) != 0;
+            DiscFire = ((uint8_t)TubeRecord800[iFor + 7] & 128) != 0;
             //CurPls = (Strings.Asc(Mid(TubeRecord800, iFor + 8)) & 127);
-            CurPls = (TubeRecord800[iFor + 8] & 127);
+            //CurPls = (TubeRecord800[iFor + 8] & 127);
+            CurPls = ((uint8_t)TubeRecord800[iFor + 7] & 127);
             //if (DiscFire & (CurPls == 123))
             if (DiscFire && (CurPls == 123))
             {
@@ -4686,9 +4698,11 @@ void LandMonitorApp::Process800(std::string TubeRecord800)
             //FirstOverflow = Asc(Mid(TubeRecord800, nFirstOverflow + MaxEntry800 + 8));
             //FirstOverflow = 256 * FirstOverflow + Asc(Mid(TubeRecord800, nFirstOverflow + 2 * MaxEntry800 + 8));
             //OverflowIncrement = FirstOverflow - LatestTOsc(CurrentUnit);
-            FirstOverflow = TubeRecord800[nFirstOverflow + MaxEntry800 + 8];
+            //FirstOverflow = TubeRecord800[nFirstOverflow + MaxEntry800 + 8];
+            FirstOverflow = (uint8_t)TubeRecord800[nFirstOverflow + MaxEntry800 + 7];
             FirstOverflow <<= 8;
-            FirstOverflow += TubeRecord800[nFirstOverflow + 2 * MaxEntry800 + 8];
+            //FirstOverflow += TubeRecord800[nFirstOverflow + 2 * MaxEntry800 + 8];
+            FirstOverflow += (uint8_t)TubeRecord800[nFirstOverflow + 2 * MaxEntry800 + 7];
             OverflowIncrement = FirstOverflow - LatestTOsc[CurrentUnit];
             if (OverflowIncrement == 1)
             {
@@ -4819,7 +4833,8 @@ Print #2, "Patch Overflow B " & Format$(CurrentUnit) & " " & Format$(FirstOverfl
     for (iFor = 0; iFor <= nEntry - 1; iFor++)
     {
         //DiscFire = (Strings.Asc(Mid(TubeRecord800, iFor + 8)) & 128) != 0;
-        DiscFire = (TubeRecord800[iFor + 8] & 128) != 0;
+        //DiscFire = (TubeRecord800[iFor + 8] & 128) != 0;
+        DiscFire = ((uint8_t)TubeRecord800[iFor + 7] & 128) != 0;
         if (DiscFire)
         {
             iDiscFire = 1;
@@ -4833,10 +4848,13 @@ Print #2, "Patch Overflow B " & Format$(CurrentUnit) & " " & Format$(FirstOverfl
             ABSString = " -";
         }
         //        CurPls = (Strings.Asc(Mid(TubeRecord800, iFor + 8)) & 127);
-        CurPls = (TubeRecord800[iFor + 8] & 127);
+        //CurPls = (TubeRecord800[iFor + 8] & 127);
+        CurPls = ((uint8_t)TubeRecord800[iFor + 7] & 127);
         //        ThisTime = Asc(Mid(TubeRecord800, iFor + MaxEntry800 + 8));
-        ThisTime = TubeRecord800[iFor + MaxEntry800 + 8];
-        ThisTime = 256 * ThisTime + TubeRecord800[iFor + 2 * MaxEntry800 + 8];
+        //ThisTime = TubeRecord800[iFor + MaxEntry800 + 8];
+        //ThisTime = 256 * ThisTime + TubeRecord800[iFor + 2 * MaxEntry800 + 8];
+        ThisTime = (uint8_t)TubeRecord800[iFor + MaxEntry800 + 7];
+        ThisTime = 256 * ThisTime + (uint8_t)TubeRecord800[iFor + 2 * MaxEntry800 + 7];
         //ABSString = ABSString + Format(CurPls) + " " + Format(ThisTime);
         ABSString += std::to_string(CurPls) + " " + std::to_string(ThisTime);
         //if (DiscFire & (CurPls == 123))
@@ -5076,15 +5094,19 @@ Print #2, "Overflow Increment Gap B " & Format$(CurrentUnit) & " " & Format$(Thi
             for (jFor = 0; jFor <= 3; jFor++)
             {
                 //                TempLong = Asc(Mid(TubeRecord800, iFor + jFor + MaxEntry800 + 8));
-                TempLong = TubeRecord800[iFor + jFor + MaxEntry800 + 8];
+                //TempLong = TubeRecord800[iFor + jFor + MaxEntry800 + 8];
+                TempLong = (uint8_t)TubeRecord800[iFor + jFor + MaxEntry800 + 7];
                 //                TempLong = (4 * TempLong) + (Asc(Mid(TubeRecord800, iFor + jFor + 2 * MaxEntry800 + 8)) / 64);
-                TempLong = (4 * TempLong) + (TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 8] / 64);
+                //TempLong = (4 * TempLong) + (TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 8] / 64);
+                TempLong = (4 * TempLong) + ((uint8_t)TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 7] / 64);
                 //                House(jFor, CurrentUnit) = TempLong;
                 House[jFor][CurrentUnit] = TempLong;
                 //                Adr = Asc(Mid(TubeRecord800, iFor + jFor + 2 * MaxEntry800 + 8)) & 7;
-                Adr = TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 8] & 7;
+                //Adr = TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 8] & 7;
+                Adr = (uint8_t)TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 7] & 7;
                 //                Flg = Asc(Mid(TubeRecord800, iFor + jFor + 2 * MaxEntry800 + 8)) & 8;
-                Flg = TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 8] & 8;
+                //Flg = TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 8] & 8;
+                Flg = (uint8_t)TubeRecord800[iFor + jFor + 2 * MaxEntry800 + 7] & 8;
                 if (Adr != (jFor + 1))
                 {
                     //House(jFor, CurrentUnit) = -House(jFor, CurrentUnit);
@@ -5095,7 +5117,8 @@ Print #2, "Overflow Increment Gap B " & Format$(CurrentUnit) & " " & Format$(Thi
             //            frmHouse.lblRevision(CurrentUnit).Caption = Strings.Asc(Mid(TubeRecord800, iFor + 8)); //TODO connect to wx with event
             iFor = iFor + 1;
             //            ResetType = Strings.Asc(Mid(TubeRecord800, iFor + 8));
-            ResetType = TubeRecord800[iFor + 8];
+//            ResetType = TubeRecord800[iFor + 8];
+            ResetType = (uint8_t)TubeRecord800[iFor + 7];
             //            frmHouse.lblResetType(CurrentUnit).Caption = ResetType; //TODO connect to wx with event
             if (ResetType > 0)
             {
@@ -5107,43 +5130,48 @@ Print #2, "Overflow Increment Gap B " & Format$(CurrentUnit) & " " & Format$(Thi
             // Temperature Sensors
             // T1
 //            if ((Asc(Mid(TubeRecord800, iFor + 2 * MaxEntry800 + 8)) & 16) != 0)
-            if ((TubeRecord800[iFor + 2 * MaxEntry800 + 8] & 16) != 0)
+//            if ((TubeRecord800[iFor + 2 * MaxEntry800 + 8] & 16) != 0)
+            if (((uint8_t)TubeRecord800[iFor + 2 * MaxEntry800 + 7] & 16) != 0)
             {
                 //                House(4, CurrentUnit) = -((Asc(Mid(TubeRecord800, iFor + MaxEntry800 + 8)) ^ 255) + 1);
 //                House(4, CurrentUnit) = -((TubeRecord800[iFor + MaxEntry800 + 8] ^ 255) + 1);
-                House[4][CurrentUnit] = -((TubeRecord800[iFor + MaxEntry800 + 8] ^ 255) + 1);
+//                House[4][CurrentUnit] = -((TubeRecord800[iFor + MaxEntry800 + 8] ^ 255) + 1);
+                House[4][CurrentUnit] = -(((uint8_t)TubeRecord800[iFor + MaxEntry800 + 7] ^ 255) + 1);
             }
             else
             {
                 //                House(4, CurrentUnit) = Asc(Mid(TubeRecord800, iFor + MaxEntry800 + 8));
 //                House(4, CurrentUnit) = TubeRecord800[iFor + MaxEntry800 + 8];
-                House[4][CurrentUnit] = TubeRecord800[iFor + MaxEntry800 + 8];
+//                House[4][CurrentUnit] = TubeRecord800[iFor + MaxEntry800 + 8];
+                House[4][CurrentUnit] = (uint8_t)TubeRecord800[iFor + MaxEntry800 + 7];
                 // T2
             }
             //            if ((Asc(Mid(TubeRecord800, iFor + MaxEntry800 + 9)) & 16) != 0)
-            if ((TubeRecord800[iFor + MaxEntry800 + 9] & 16) != 0)
+            if (((uint8_t)TubeRecord800[iFor + MaxEntry800 + 9] & 16) != 0)
             {
                 //                House(5, CurrentUnit) = -((Strings.Asc(Mid(TubeRecord800, iFor + 8)) ^ 255) + 1);
 //                House(5, CurrentUnit) = -((TubeRecord800[iFor + 8] ^ 255) + 1);
-                House[5][CurrentUnit] = -((TubeRecord800[iFor + 8] ^ 255) + 1);
+//                House[5][CurrentUnit] = -((TubeRecord800[iFor + 8] ^ 255) + 1);
+                House[5][CurrentUnit] = -(((uint8_t)TubeRecord800[iFor + 7] ^ 255) + 1);
             }
             else
             {
                 //                House(5, CurrentUnit) = Strings.Asc(Mid(TubeRecord800, iFor + 8));
 //                House(5, CurrentUnit) = TubeRecord800[iFor + 8];
-                House[5][CurrentUnit] = TubeRecord800[iFor + 8];
+//                House[5][CurrentUnit] = TubeRecord800[iFor + 8];
+                House[5][CurrentUnit] = (uint8_t)TubeRecord800[iFor + 7];
             }
             // T3
 //            if ((Strings.Asc(Mid(TubeRecord800, iFor + 9)) & 16) != 0)
-            if ((TubeRecord800[iFor + 9] & 16) != 0)
+            if (((uint8_t)TubeRecord800[iFor + 9] & 16) != 0)
             {
                 //                House(6, CurrentUnit) = -((TubeRecord800[iFor + 2 * MaxEntry800 + 9] ^ 255) + 1);
-                House[6][CurrentUnit] = -((TubeRecord800[iFor + 2 * MaxEntry800 + 9] ^ 255) + 1);
+                House[6][CurrentUnit] = -(((uint8_t)TubeRecord800[iFor + 2 * MaxEntry800 + 9] ^ 255) + 1);
             }
             else
             {
                 //                House(6, CurrentUnit) = TubeRecord800[iFor + 2 * MaxEntry800 + 9];
-                House[6][CurrentUnit] = TubeRecord800[iFor + 2 * MaxEntry800 + 9];
+                House[6][CurrentUnit] = (uint8_t)TubeRecord800[iFor + 2 * MaxEntry800 + 9];
             }
             iFor = iFor + 1;
             //RemoteVoltages(CurrentUnit); //TODO RemoteVoltages
@@ -6122,7 +6150,7 @@ Input:
     // Master Board Number
     //MasterNumber = Strings.Asc(LongTubeRecord) & 7;
     //MasterNumber = std::stoi(LongTubeRecord.substr(0,1).c_str(), nullptr, 10);
-    MasterNumber = LongTubeRecord[0];
+    MasterNumber = (uint8_t)LongTubeRecord[0];
     Sequence = MasterNumber & 48; // both masked in the same convereted byte
     MasterNumber &= 7;
     if ((MasterNumber < 0) || (MasterNumber > LastMaster))
@@ -6186,7 +6214,7 @@ Print #2, "Sequence " & Format$(Sequence)
     }
 
     //RemoteInMaster = Strings.Asc(Mid(LongTubeRecord, 2)) & 15;
-    RemoteInMaster = LongTubeRecord[1] & 15;
+    RemoteInMaster = (uint8_t)LongTubeRecord[1] & 15;
 
 
     //if ((RemoteInMaster < 0) | (RemoteInMaster > LastRemote(MasterNumber)))
@@ -6225,11 +6253,14 @@ Print #2, "Sequence " & Format$(Sequence)
         //ScalerCount = Strings.Asc(Mid(LongTubeRecord, 3));
         //ScalerCount = (256 * ScalerCount) + Strings.Asc(Mid(LongTubeRecord, 4));
         //ScalerCount = (256 * ScalerCount) + Strings.Asc(Mid(LongTubeRecord, 5));
-        ScalerCount = (uint8_t)LongTubeRecord[3];
+        //ScalerCount = (uint8_t)LongTubeRecord[3];
+        ScalerCount = (uint8_t)LongTubeRecord[2];
         ScalerCount <<= 8;
+        //ScalerCount += (uint8_t)LongTubeRecord[4];
+        ScalerCount += (uint8_t)LongTubeRecord[3];
+        ScalerCount <<= 8;
+        //ScalerCount += (uint8_t)LongTubeRecord[5];
         ScalerCount += (uint8_t)LongTubeRecord[4];
-        ScalerCount <<= 8;
-        ScalerCount += (uint8_t)LongTubeRecord[5];
         if (VerboseDiagnostics)
         {
             /* Cannot convert ExpressionStatementSyntax, System.ArgumentException: An item with the same key has already been added.
@@ -6344,11 +6375,15 @@ Print #2, "Scaler Count " & Format$(ScalerCount)
                     //CurPls = (Strings.Asc(Mid(LongTubeRecord, iFor + 8)) & 127);
                     //Time1[iFor] = Asc(Mid(LongTubeRecord, iFor + nEv700 + 8));
                     //Time1[iFor] = 256 * Time1[iFor] + Asc(Mid(LongTubeRecord, iFor + 2 * nEv700 + 8));
-                    DiscFire = ((uint8_t)LongTubeRecord[iFor + 8] & 128) != 0;
-                    CurPls = ((uint8_t)LongTubeRecord[iFor + 8]) & 127;
-                    Time1[iFor] = (uint8_t)LongTubeRecord[iFor + nEv700 + 8];
+//                    DiscFire = ((uint8_t)LongTubeRecord[iFor + 8] & 128) != 0;
+                    DiscFire = ((uint8_t)LongTubeRecord[iFor + 7] & 128) != 0;
+//                    CurPls = ((uint8_t)LongTubeRecord[iFor + 8]) & 127;
+                    CurPls = ((uint8_t)LongTubeRecord[iFor + 7]) & 127;
+//                    Time1[iFor] = (uint8_t)LongTubeRecord[iFor + nEv700 + 8];
+                    Time1[iFor] = (uint8_t)LongTubeRecord[iFor + nEv700 + 7];
                     Time1[iFor] <<= 8;
-                    Time1[iFor] += (uint8_t)LongTubeRecord[iFor + 2 * nEv700 + 8];
+//                    Time1[iFor] += (uint8_t)LongTubeRecord[iFor + 2 * nEv700 + 8];
+                    Time1[iFor] += (uint8_t)LongTubeRecord[iFor + 2 * nEv700 + 7];
                     if ((CurrentUnit <= LastUnit))
                     {
                         //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
@@ -6448,6 +6483,12 @@ Print #2, "Scaler Count " & Format$(ScalerCount)
     else if (FirmVersion[CurrentUnit] == 800)
     {
         //LongTubeOut += "800tube \n";
+        if (LongTubeOut.size() > 0)
+        {
+            wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
+            MinuteFile << LongTubeOut << std::flush;
+            LongTubeOut.clear();
+        }
         Process800(LongTubeRecord); 
     }
     else if (FirmVersion[CurrentUnit] == 900)
@@ -6803,7 +6844,7 @@ Input:
                     }
                     //DeviceData = Mid(Current, RackSyncLen + 1, ShortTubeByteLen);
                     //std::string DeviceData(Current.begin() + RackSyncLen + 1, Current.begin() + ShortTubeByteLen);
-                    std::string DeviceData(Current.begin() + RackSyncLen, Current.begin() + ShortTubeByteLen);
+                    std::string DeviceData(Current.begin() + RackSyncLen, Current.begin() + RackSyncLen + ShortTubeByteLen);
                     if (VerboseDiagnostics)
                     {
                         MinuteFileOut += "ShortTube found";
@@ -6855,7 +6896,7 @@ Print #2, "ShortTube found"
                     if (Current.size() > (ShortTubeByteLen + RackSyncLen + 2))
                     {
                         //Current = Mid(Current, ShortTubeByteLen + RackSyncLen + 3);
-                        Current.erase(Current.begin(), Current.begin() + ShortTubeByteLen + RackSyncLen + 3);
+                        Current.erase(Current.begin(), Current.begin() + ShortTubeByteLen + RackSyncLen + 2);
                     }
                     else
                     {
@@ -7046,7 +7087,7 @@ Print #98, "Reset timing: No delimiter long tube"
                         }
                     }
                     //std::string DeviceData(Current.begin() + RackSyncLen + 1, Current.begin() + LongTubeByteLen);
-                    std::string DeviceData(Current.begin() + RackSyncLen, Current.begin() + LongTubeByteLen);
+                    std::string DeviceData(Current.begin() + RackSyncLen, Current.begin() + RackSyncLen + LongTubeByteLen);
                     if (VerboseDiagnostics)
                     {
                         MinuteFileOut += "LongTube found";
@@ -7123,11 +7164,17 @@ Print #2, "LongTube found"
                 //    StillHope = false;
                 //    break;
                 //}
+                    if (MinuteFileOut.size() > 0)
+                    {
+                        wxCriticalSectionLocker csLock(wxGetApp().csMinuteFile); //lock access to minute file
+                        MinuteFile << MinuteFileOut << std::flush;
+                        MinuteFileOut.clear();
+                    }
                     DecomLongTube(DeviceData);
                     if (Current.size() > (LongTubeByteLen + RackSyncLen + 2))
                     {
                         //Current = Mid(Current, LongTubeByteLen + RackSyncLen + 3);
-                        Current.erase(Current.begin(), Current.begin() + LongTubeByteLen + RackSyncLen + 3);
+                        Current.erase(Current.begin(), Current.begin() + LongTubeByteLen + RackSyncLen + 2);
                     }
                     else
                     {
