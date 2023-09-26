@@ -5537,7 +5537,9 @@ Print #2, "Overflow Increment Gap B " & Format$(CurrentUnit) & " " & Format$(Thi
             RingInterval[NewestPointer[CurrentUnit]][CurrentUnit] -= RingCorFullTime[OffsetNewest(CurrentUnit, -1)][CurrentUnit];
             //            ABSString = ABSString + " " + Format(RingInterval(NewestPointer(CurrentUnit), CurrentUnit)) + " " + Format(RingRawFullTime(NewestPointer(CurrentUnit), CurrentUnit));
             //            ABSString = ABSString + " " + Format(RingInterval(NewestPointer(CurrentUnit), CurrentUnit)) + " " + Format(RingRawFullTime(NewestPointer[CurrentUnit)][CurrentUnit]);
-            ABSString += " " + std::to_string(RingInterval[NewestPointer[CurrentUnit]][CurrentUnit]) + " " + std::to_string(RingRawFullTime[NewestPointer[CurrentUnit]][CurrentUnit]);
+            char tempRing[50];
+            snprintf(tempRing, 49,  " %d %d", RingInterval[NewestPointer[CurrentUnit]][CurrentUnit], RingRawFullTime[NewestPointer[CurrentUnit]][CurrentUnit]);
+            ABSString += tempRing;
             //if (ShowSelectedRemote & (CurrentUnit == WatchThisRemote))
             if (ShowSelectedRemote && (CurrentUnit == WatchThisRemote))
             {
