@@ -36,6 +36,8 @@ public:
 	int OffsetOldest(int RemAdr, int LookOffset);
 	int OffsetNewest(int RemAdr, int LookOffset);
 	std::string HistoryLine(int LocRing, int RemoteUnit);
+	void ResetTiming();
+	void Timer1_Timer();
 
 #ifdef _WIN32  // Windows specific code
 	HANDLE openSerialPort(const char* portName, const char* serialParams);
