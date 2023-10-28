@@ -14,9 +14,14 @@ void LMMonitor::m_button_psiOnButtonClick( wxCommandEvent& event )
 
 void LMMonitor::m_quickBookStatusOnLeftDown( wxMouseEvent& event )
 {
-this->m_quickBookStatus->SetBackgroundColour(wxColour(0, 255, 0));
-this->Update();
-this->Refresh();
+	this->m_quickBookStatus->SetBackgroundColour(wxColour(0, 255, 0));
+	this->Update();
+	this->Refresh();
+}
+
+void LMMonitor::m_timer1OnTimer( wxTimerEvent& event )
+{
+	wxGetApp().Timer1_Timer();
 }
 
 

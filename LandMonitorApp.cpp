@@ -41,6 +41,12 @@ public:
     virtual ExitCode Entry();
 };
 
+//class Timer1Thread : public wxThread
+//{
+//public:
+//    virtual ExitCode Entry();
+//};
+
 //New C++ port variables
 LMMonitor* monitorF;
 std::fstream MinuteFile;
@@ -55,7 +61,7 @@ bool chkLogZeroRemoteHits_Value = true; //TODO update from wx
 bool chkLogDuplicates_Value = false; //TODO update from wx
 bool chkRecABSTiming_Value = true; //TODO update from wx
 bool chkLogBadEvents_Value = true; //TODO update from wx
-std::chrono::system_clock::time_point nextTimer1Sec; //New implimetation of VB Timer1, stores minimum time for next Timer1_Timer() 
+std::chrono::system_clock::time_point lastTimer1; //New implimetation of VB Timer1, stores minimum time for next Timer1_Timer() 
 
 #ifdef _WIN32  // Windows specific code
 HANDLE comRack;
@@ -3089,10 +3095,15 @@ Print #2, "SelCatch" & " " & CatchDecimateInit
     // Read the cross (histogram) matrix
     // This is a (LastUnit+1) by (LastUnit+1) matrix
     // assigning a cross histogram to each ordered unit pair
-        comThread[0] = new RackThread();
+    ResetTiming(); //TODO rest of Monitor_Form_Load()
+
+    
+    //timeThread = new Timer1Thread();
+    //timeThread->Run();
+    
+    comThread[0] = new RackThread();
     comThread[0]->Run();
     
-    ResetTiming(); //TODO rest of Monitor_Form_Load()
     return true; //TODO rest of Monitor_Form_Load()
     }
     /*
@@ -6625,6 +6636,15 @@ void LandMonitorApp::Timer1_Timer()
     bool NewDay;
     int iFor;
     int jFor;
+
+    
+    wxCriticalSectionLocker csTime(wxGetApp().csTimer1); //mutex to prevent Timer1_Timer & RackData running at same time
+    auto nowTimer1 = std::chrono::system_clock::now();
+    std::chrono::duration<double> sec = nowTimer1 - lastTimer1;
+    std::cout << sec.count() << '\n';
+    lastTimer1 = nowTimer1;
+    monitorF->
+
     if (FreshException > 0)
     {
         if (MinuteFileAvailable)
@@ -8321,6 +8341,8 @@ Input:
     }
 
     NewDay = false;
+    csTime.~wxCriticalSectionLocker(); //end critical section and unlock
+
 }
 
 void LandMonitorApp::RackData()
@@ -8367,15 +8389,18 @@ void LandMonitorApp::RackData()
     int FreshCount;
     std::string MinuteFileOut;
     VerboseDiagnostics = true; //TODO comment out
-    std::chrono::system_clock::time_point nowTimer1Sec = std::chrono::system_clock::now();
-    if (nowTimer1Sec >= nextTimer1Sec) //check if is past the min time for next sec, starts with thread start not sec change
-    {
-        MinuteFileOut += "RackData running Timer1_Timer()";
-        nextTimer1Sec += std::chrono::seconds(1); //increment for next sec
-        //Timer1_Timer();// replaces Timer1 in VB which has an event every sec for timing upkeep
-    }
+    //std::chrono::system_clock::time_point nowTimer1Sec = std::chrono::system_clock::now();
+    //if (nowTimer1Sec >= nextTimer1Sec) //check if is past the min time for next sec, starts with thread start not sec change
+    //{
+    //    MinuteFileOut += "RackData running Timer1_Timer()";
+    //    nextTimer1Sec += std::chrono::seconds(1); //increment for next sec
+    //    //Timer1_Timer();// replaces Timer1 in VB which has an event every sec for timing upkeep
+    //}
     // Read the Rack port
     ReadFile(comRack, &Dta, 1600, &nRead, NULL);
+
+    wxCriticalSectionLocker csTime(wxGetApp().csTimer1); //mutex to prevent Timer1_Timer & RackData running at same time
+
     //Dta = comRack.Input;
     //nRead = Strings.Len(Dta);
     //if (nRead > 16000) //no longer needed as ReadFile will not return above max
@@ -10899,6 +10924,8 @@ Print #2, "NgrMessageSyncB: " & Mid$(Current, RackSyncLen + 1, NgrMessageByteLen
         }
     }
 //    frmHouse.lblNCurrent(1).Caption = Strings.Format(Strings.Len(Current), "0"); //TODO connect to wx with event
+    csTime.~wxCriticalSectionLocker(); //end critical section and unlock
+
 }
 
 #ifdef _WIN32  // Windows specific code
@@ -11118,7 +11145,7 @@ int LandMonitorApp::openSerialPort(const char* portName, const char* serialParam
 
 wxThread::ExitCode RackThread::Entry()
 {
-    nextTimer1Sec = std::chrono::system_clock::now();
+    //nextTimer1Sec = std::chrono::system_clock::now();
     while (true)
     {
         //char readBuf[50];
@@ -11136,3 +11163,14 @@ wxThread::ExitCode RackThread::Entry()
     //MinuteFile.close();
     return 0;
 }
+
+
+//wxThread::ExitCode Timer1Thread::Entry()
+//{
+//    nextTimer1Sec = std::chrono::system_clock::now();
+//    while (true)
+//    {
+//        wxGetApp().Timer1_Timer();
+//    }
+//    return 0;
+//}

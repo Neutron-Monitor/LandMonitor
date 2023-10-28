@@ -1,6 +1,7 @@
 #ifndef LANDMONITORAPP_H
 #define LANDMONITORAPP_H
 
+#include <wx/app.h>
 #include <wx/wxprec.h>
 #ifndef WX_PRECOMP
 #include <wx/wx.h>
@@ -12,7 +13,9 @@ class LandMonitorApp : public wxApp
 {
 public:
 	wxCriticalSection csMinuteFile;
+	wxCriticalSection csTimer1;
 	wxThread * comThread[3];
+	//wxThread * timeThread;
 	virtual bool OnInit();
 	bool Monitor_Form_Load();
 	void LogEntry(std::string Message);
@@ -46,5 +49,7 @@ public:
 #endif
 
 };
+
+DECLARE_APP(LandMonitorApp);
 
 #endif //LANDMONITORAPP_H
